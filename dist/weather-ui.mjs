@@ -41,7 +41,7 @@ async function loadForecast(){const id=++forecastId;$('loadForecast').disabled=t
  if(id!==forecastId)return;$('loadForecast').disabled=false;forecast=r;
  if(!r.forecast){$('forecastState').textContent=r.errors.join(' ');$('forecastState').classList.add('error');$('forecastFig').hidden=true;$('explainForecast').hidden=true;return;}
  if(forecastUrl)URL.revokeObjectURL(forecastUrl);forecastUrl=URL.createObjectURL(new Blob([forecastSvg(r.forecast,pointLabel)],{type:'image/svg+xml'}));$('forecastChart').src=forecastUrl;$('downloadForecast').href=forecastUrl;$('downloadForecast').download='previsao-anomalias.svg';$('forecastFig').hidden=false;$('explainForecast').hidden=false;
- $('forecastState').textContent=(r.hasClimatology?'Previsão dos próximos dias comparada à média ERA5 1991–2020. ':'Previsão sem comparação com o normal (climatologia indisponível). ')+r.errors.join(' ');if(r.errors.length)$('forecastState').classList.add('error');}
+ $('forecastState').textContent=(r.hasClimatology?'Previsão dos próximos dias comparada à média ERA5 1991–2020 ('+r.climateSource+'). ':'Previsão sem comparação com o normal (climatologia indisponível). ')+r.errors.join(' ');if(r.errors.length)$('forecastState').classList.add('error');}
 let anomalyId=0;
 // Só a consulta mais recente atualiza a tela: cliques rápidos não deixam uma resposta antiga sobrescrever a nova.
 async function anomaly(){const id=++anomalyId;$('wxAnomalyNote').textContent='Consultando Open-Meteo (análise recente e 30 anos de ERA5)…';$('wxAnomalyNote').classList.remove('error');$('wxCards').replaceChildren();lastAnomaly=null;
@@ -94,4 +94,5 @@ bindExplain($('explainForecast'),$('forecastExplain'),()=>explainForecast(foreca
 bindExplain($('explainMonthly'),$('monthlyExplain'),()=>explainMonthly(monthly,pointLabel));
 bindExplain($('explainPoint'),$('wxExplain'),()=>explainPoint(lastAnomaly,pointLabel));
 bindExplain($('explainGlobal'),$('wxGlobalExplain'),()=>explainGlobal(global));
+window.magneTerraPoint=()=>({lat:point.lat,lon:point.lon,label:pointLabel});
 if($('weather')){start();if(started)loadGlobal();}

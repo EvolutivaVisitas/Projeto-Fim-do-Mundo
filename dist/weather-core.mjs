@@ -1,3 +1,4 @@
+import {PLACES} from './places.mjs';
 // Lógica pura de tempo e satélite do MagneTerra (sem DOM, testável em Node).
 // Fontes: NASA GIBS (camadas de satélite) e Open-Meteo (previsão/análise recente e reanálise ERA5).
 export const GIBS='https://gibs.earthdata.nasa.gov/wmts/epsg3857/best';
@@ -211,22 +212,32 @@ export function forecastDailyUrl(lat,lon){return `${OPEN_METEO.forecast}?${new U
 export function buildForecastAnomalies(fc,archive,now=Date.now()){
  const d=fc?.daily;if(!d||!Array.isArray(d.time))return null;
  const today=new Date(now).toISOString().slice(0,10),days=[];
- d.time.forEach((t,i)=>{if(t<=today)return;const temp=num(d.temperature_2m_mean?.[i]),rain=num(d.precipitation_sum?.[i]),c=archive?buildClimatology(archive,Date.parse(t+'T12:00:00Z')):null;
+ // `archive` pode ser o arquivo ERA5 de 30 anos ou uma função ms -> climatologia (tabela pré-calculada).
+ const at=ms=>typeof archive==='function'?archive(ms):archive?buildClimatology(archive,ms):null;
+ d.time.forEach((t,i)=>{if(t<=today)return;const temp=num(d.temperature_2m_mean?.[i]),rain=num(d.precipitation_sum?.[i]),c=at(Date.parse(t+'T12:00:00Z'));
   const row={date:t,temp,rain,climMean:c?.temps?.mean??null,anomaly:null,z:null};
   if(temp!==null&&c?.temps){row.anomaly=temp-c.temps.mean;row.z=row.anomaly/c.temps.sd;}
   days.push(row);});
  if(!days.length)return null;
  let rain=null;const first7=days.slice(0,7);
- if(first7.length===7&&first7.every(r=>r.rain!==null)){const sum=first7.reduce((s,r)=>s+r.rain,0),c=archive?buildClimatology(archive,Date.parse(first7[6].date+'T12:00:00Z')):null;
+ if(first7.length===7&&first7.every(r=>r.rain!==null)){const sum=first7.reduce((s,r)=>s+r.rain,0),c=at(Date.parse(first7[6].date+'T12:00:00Z'));
   rain={sum,climMean:c?.rain7?.mean??null,pct:c?.rain7&&c.rain7.mean>.5?sum/c.rain7.mean*100:null};}
  return {days,rain,generatedFor:today};
 }
+export function haversineKm(lat1,lon1,lat2,lon2){const r=Math.PI/180,a=Math.sin((lat2-lat1)*r/2)**2+Math.cos(lat1*r)*Math.cos(lat2*r)*Math.sin((lon2-lon1)*r/2)**2;return 12742*Math.asin(Math.sqrt(a));}
+// Lugar da lista curada mais próximo que tenha climatologia pré-calculada (até maxKm); senão null.
+export function nearestPlace(lat,lon,table,maxKm=60){let best=null;for(const p of PLACES){if(!table?.places?.[p.id])continue;const km=haversineKm(lat,lon,p.lat,p.lon);if(km<=maxKm&&(!best||km<best.km))best={place:p,km};}return best;}
 export async function collectForecast(lat,lon,now=Date.now(),fetcher=fetch){
  const [f,a]=await Promise.allSettled([getJson(forecastDailyUrl(lat,lon),fetcher),climArchive(lat,lon,fetcher)]);
- const errors=[];if(f.status==='rejected')errors.push('Open-Meteo (previsão): fonte indisponível.');if(a.status==='rejected')errors.push('Open-Meteo (ERA5): fonte indisponível; sem comparação com o normal.');
- const fc=f.status==='fulfilled'?buildForecastAnomalies(f.value,a.status==='fulfilled'?a.value:null,now):null;
+ const errors=[];if(f.status==='rejected')errors.push('Open-Meteo (previsão): fonte indisponível.');
+ let source='ERA5 (consulta direta)',clim=a.status==='fulfilled'?a.value:null;
+ if(a.status==='rejected'){// limite da API ou falha: tenta a tabela pré-calculada de um lugar próximo da lista
+  try{const table=await getJson('climate/places-climatology.json',fetcher),n=nearestPlace(lat,lon,table);
+   if(n){const entry=table.places[n.place.id];clim=ms=>climFromTable(entry,ms);source=`tabela pré-calculada de ${n.place.name} (a ${Math.round(n.km)} km)`;}}catch{}
+  if(typeof clim!=='function')errors.push('Open-Meteo (ERA5): fonte indisponível; sem comparação com o normal.');}
+ const fc=f.status==='fulfilled'?buildForecastAnomalies(f.value,clim,now):null;
  if(f.status==='fulfilled'&&!fc)errors.push('Previsão sem dados válidos.');
- return {lat,lon,forecast:fc,errors,collectedAt:new Date(now).toISOString(),hasClimatology:!!fc&&fc.days.some(r=>r.anomaly!==null)};
+ return {lat,lon,forecast:fc,errors,collectedAt:new Date(now).toISOString(),hasClimatology:!!fc&&fc.days.some(r=>r.anomaly!==null),climateSource:source};
 }
 // Barras da anomalia prevista de temperatura por dia. Dias além de 7 saem mais claros (previsão menos confiável).
 export function forecastSvg(fc,label=''){

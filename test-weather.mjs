@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {LAYERS,gibsTime,gibsTemplate,floorTime,firstCandidate,frameTimes,ageLabel,buildClimatology,buildAnomaly,forecastDailyUrl,buildForecastAnomalies,collectForecast,forecastSvg,recentMonthsRange,recentMonthsUrl,monthlyClimatology,buildMonthlyAnomalies,collectMonthly,monthlySvg,climatologyTable,dayIndex,collectGlobalWeather,searchPlace,findLatestFrame,collectDailyWeather,classifyZ,classifyRain,forecastUrl,archiveUrl} from './dist/weather-core.mjs';
+import {LAYERS,gibsTime,gibsTemplate,floorTime,firstCandidate,frameTimes,ageLabel,buildClimatology,buildAnomaly,forecastDailyUrl,buildForecastAnomalies,collectForecast,nearestPlace,haversineKm,forecastSvg,recentMonthsRange,recentMonthsUrl,monthlyClimatology,buildMonthlyAnomalies,collectMonthly,monthlySvg,climatologyTable,dayIndex,collectGlobalWeather,searchPlace,findLatestFrame,collectDailyWeather,classifyZ,classifyRain,forecastUrl,archiveUrl} from './dist/weather-core.mjs';
 const now=Date.parse('2026-11-08T00:52:00Z');
 // Tempo GIBS
 assert.equal(gibsTime(LAYERS.geocolor,Date.parse('2026-11-07T23:50:00Z')),'2026-11-07T23:50:00Z');
@@ -75,4 +75,10 @@ assert.equal(buildForecastAnomalies(null,archive,now),null);
 const nc=buildForecastAnomalies({daily:{time:ft,temperature_2m_mean:fT,precipitation_sum:fR}},null,now);assert.equal(nc.days[0].anomaly,null);assert.equal(nc.rain.pct,null);
 const cf=await collectForecast(1,2,now,async()=>{throw Error('offline');});assert.equal(cf.forecast,null);assert.ok(cf.errors.length>=1);
 assert.ok(forecastSvg(fa,"Teste").includes('s/d'));assert.match(forecastSvg(null),/indisponível/);
+// Fallback: API de 30 anos indisponível -> tabela pré-calculada do lugar mais próximo
+assert.ok(Math.abs(haversineKm(0,0,0,1)-111.2)<1);
+const ftab={places:{'goiania-brasil':tab}};assert.equal(nearestPlace(-16.7,-49.3,ftab).place.id,'goiania-brasil');assert.equal(nearestPlace(-10,-40,ftab),null);assert.equal(nearestPlace(-16.7,-49.3,{places:{}}),null);
+const fbFetch=async u=>{if(u.includes('archive-api'))return {ok:false,status:429};if(u.includes('places-climatology'))return {ok:true,json:async()=>ftab};return {ok:true,json:async()=>({daily:{time:ft,temperature_2m_mean:fT,precipitation_sum:fR}})};};
+const fb=await collectForecast(-16.7,-49.3,now,fbFetch);assert.ok(fb.hasClimatology);assert.match(fb.climateSource,/Goiânia/);assert.ok(Math.abs(fb.forecast.days[0].anomaly-3)<.15);assert.equal(fb.errors.length,0);
+const far=await collectForecast(10,10,now,fbFetch);assert.equal(far.hasClimatology,false);assert.match(far.errors.join(' '),/sem comparação com o normal/);assert.ok(far.forecast.days.length>0);
 console.log('Passed: GIBS time/URLs, climatology, temperature/rain anomalies, missing data.');
