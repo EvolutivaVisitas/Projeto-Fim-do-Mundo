@@ -1,6 +1,6 @@
 # MagneTerra
 
-## Uso local
+## Uso local (sem ChatGPT/Codex)
 
 - **Abrir o site:** dê dois cliques em `start.bat` (ou `node serve.mjs`) e acesse http://127.0.0.1:4173/. Sem login; só funciona neste computador.
 - **Atualizar os dados:** `daily.bat` (ou `node collect-daily.mjs`) coleta Kp/aurora, tempo/satélite e o panorama global. Há uma tarefa agendada diária que faz isso enquanto o app Claude estiver aberto.
@@ -21,6 +21,18 @@ O coletor diário (`collect-daily.mjs`) também grava em cada boletim o campo `w
 - **Busca:** qualquer lugar do mundo via geocodificação Open-Meteo; ao escolher, o app calcula a anomalia ao vivo e centraliza o mapa.
 - **Panorama global:** tabela e marcadores coloridos de 150 lugares curados (`dist/places.mjs`: capitais brasileiras e cidades de todos os continentes), com filtros por continente, nome/país e ordenação (mais quente/frio, mais/menos chuva). **Não é uma grade regular**: regiões fora da lista não aparecem. Os dados vêm de `reports/weather-latest.json`, gravado por `collect-weather-global.mjs` (também chamado por `collect-daily.mjs`); a página mostra a hora da coleta e avisa se estiver antiga.
 - **Climatologia pré-calculada:** `node build-climatology.mjs` gera `dist/climate/places-climatology.json` (ERA5 1991–2020, ±7 dias, 366 dias por lugar). Rode raramente; sem esse arquivo o panorama não calcula anomalias.
+
+### Estimativa futura (passado + presente → futuro)
+
+A seção **Estimativa futura** calcula, no próprio app e com métodos estatísticos simples e declarados:
+- **Próximos dias e 3 meses (temperatura):** regressão de persistência. Em 30 anos de ERA5, mede-se quanto o desvio dos últimos 3 dias (ou 3 meses) em relação ao normal ainda aparece k dias (meses) depois; aplica-se isso ao desvio atual, com intervalo de 90%. Mostra até quantos dias o passado ajuda (depois, o melhor é o modelo meteorológico, desenhado junto no gráfico). Se a API de 30 anos estiver no limite, usa o modelo pré-calculado (gravado por `build-climatology.mjs` em `dist/climate/places-climatology.json`) do lugar da lista mais próximo (até 60 km); lugares ainda sem `model` precisam ser refeitos por esse script.
+- **Terremotos:** frequência histórica (USGS, 10 anos; mundo e raio de 500 km do ponto) e probabilidade de ao menos um em 7 e 30 dias por Poisson. É taxa de base, **não** previsão de quando ou onde.
+- **Temperatura global:** extrapolação linear da tendência desde 1970 (NASA GISTEMP) para 2030/2040/2050 com intervalo de ~90%; não é projeção climática.
+Cada estimativa traz o intervalo e o limite do método; falta de dado nunca é preenchida. `node test-projection.mjs` valida (inclui recuperar a persistência de um processo AR(1) sintético).
+
+### Leitura geral: “Isso é alarmante?”
+
+No topo da página, o painel **Isso é alarmante?** calcula, para o ponto escolhido em “Tempo e satélite” (padrão: Goiânia), uma leitura em linguagem simples juntando: (1) a previsão dos próximos 7 dias de temperatura e chuva comparada ao normal ERA5 1991–2020, com a **raridade** do desvio (em cerca de 1 a cada N dias, por aproximação normal) e a tendência da semana; (2) a previsão de Kp da NOAA; (3) os avisos oficiais em vigor (USGS, NOAA, GDACS). Dá um nível (normal, atenção leve, atenção, alerta) e um veredito. Regras: previsões nunca passam de “vale acompanhar”; só avisos graves de agências levam ao nível mais alto; o contexto de longo prazo (clima global) aparece mas não entra na leitura geral; dado ausente é dito e nunca estimado. Se a API de 30 anos estiver no limite, usa a climatologia pré-calculada do lugar da lista mais próximo (até 60 km) e informa isso. `node test-outlook.mjs` valida. Não prevê terremotos nem erupções.
 
 ### Avisos oficiais e previsões
 

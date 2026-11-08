@@ -187,3 +187,24 @@ export function explainForecast(res,place=''){
  if(res?.errors?.length)sections.push({title:'Limite do dado',text:res.errors.join(' ')});
  return make(level,level===0?`A previsão${where} para os próximos dias é de tempo dentro do normal.`:level===1?`A previsão${where} indica dias um pouco fora do normal.`:`A previsão${where} indica dias bem fora do normal; vale acompanhar.`,sections);
 }
+
+// ---- Estimativas futuras calculadas pelo app (ver projection-core.mjs) ----
+export function explainProjection(p,place=''){
+ const where=place?` em ${place}`:' neste ponto',f1x=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1}).format(v),pc=v=>v===null||v===undefined?'—':(v*100<1?'menos de 1%':new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(v*100)+'%');
+ if(!p||(!p.days&&!p.months&&!p.quakes&&!p.global))return make(null,`Não dá para estimar o futuro${where} agora.`,[{title:'O que aconteceu',text:[...(p?.errors??[]),'Sem dados suficientes; nada foi estimado.'].join(' ')}]);
+ const sections=[];
+ if(p.days){const d=p.days,first=d.days[0],last=d.days[Math.min(d.days.length-1,d.usefulDays)]??first,r=d.recentAnomaly;
+  sections.push({title:'Próximos dias (estimativa do passado)',text:`Nos últimos 3 dias a temperatura${where} ficou ${f1x(Math.abs(r))} °C ${r>=0?'acima':'abaixo'} do normal. Em 30 anos de dados, esse tipo de desvio tende a persistir por pouco tempo: o passado só ajuda a estimar até cerca de ${d.usefulDays} dias à frente. Para ${first.date.slice(8,10)}/${first.date.slice(5,7)} a estimativa é ${f1x(first.expected)} °C (entre ${f1x(first.lo)} e ${f1x(first.hi)} °C, com 90% de confiança), e o desvio esperado cai para ${f1x(last.expectedAnomaly)} °C perto do dia ${last.date.slice(8,10)}/${last.date.slice(5,7)}. Depois disso, a melhor referência é o modelo meteorológico.`});}
+ else sections.push({title:'Próximos dias (estimativa do passado)',text:'Sem estimativa: faltaram dados recentes ou o histórico de 30 anos não está disponível agora. Nada foi preenchido.'});
+ if(p.months){const m=p.months,MN=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+  sections.push({title:'Próximos meses',text:`Nos últimos 3 meses a temperatura ficou ${f1x(Math.abs(m.recentAnomaly))} °C ${m.recentAnomaly>=0?'acima':'abaixo'} do normal. A estimativa por persistência é: ${m.months.map(x=>`${MN[x.month]} de ${x.year}: ${f1x(x.expected)} °C (entre ${f1x(x.lo)} e ${f1x(x.hi)})`).join('; ')}. Meses distantes ficam quase iguais à média histórica: a incerteza é grande.`});}
+ if(p.quakes){const q=p.quakes.rows.filter(r=>r.count!==null),g=q.filter(r=>r.scope==='global'),l=q.filter(r=>r.scope==='local');
+  const gl=g.find(r=>r.mag===6),loc=l.find(r=>r.mag===5)??l[0];
+  sections.push({title:'Terremotos: frequência histórica',text:`${gl?`No mundo ocorreram cerca de ${new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(gl.perYear)} terremotos de magnitude 6 ou mais por ano nos últimos ${p.quakes.years} anos; a chance de pelo menos um nos próximos 7 dias é ${pc(gl.p7)}.`:'Sem a contagem global agora.'} ${loc?`Em um raio de ${p.quakes.radiusKm} km ao redor ${place?'de '+place:'do ponto'}, houve ${loc.count} terremoto(s) de magnitude ${String(loc.mag).replace('.',',')} ou mais em ${p.quakes.years} anos; a chance de pelo menos um nos próximos 30 dias é ${pc(loc.p30)}.`:''} Isso é uma frequência de base calculada do passado, não uma previsão de quando ou onde: terremotos não podem ser previstos.`});}
+ if(p.global){const g=p.global,y=g.points[0],z=g.points.at(-1);
+  sections.push({title:'Temperatura global até '+z.year,text:`Desde ${g.from} a temperatura média da Terra sobe cerca de ${f1x(g.slopePerDecade)} °C por década. Se essa tendência linear continuasse, a anomalia seria cerca de ${f1x(y.value)} °C em ${y.year} (entre ${f1x(y.lo)} e ${f1x(y.hi)}) e ${f1x(z.value)} °C em ${z.year} (entre ${f1x(z.lo)} e ${f1x(z.hi)}), sempre em relação a 1951–1980. É extrapolação do passado, não uma projeção climática: o ritmo real depende das emissões futuras.`});}
+ sections.push({title:'Quão confiável é?',text:'São estimativas estatísticas simples, calculadas a partir do passado e do presente, com o intervalo de cada uma. Funcionam melhor para poucos dias; quanto mais longe, mais incerto. Elas não substituem previsão do tempo, avisos oficiais nem estudos climáticos.'},
+  {title:'Devo me preocupar?',text:'Estas estimativas, sozinhas, não indicam perigo. Se algo exigir ação, as agências oficiais emitem avisos; use a leitura geral “Isso é alarmante?” e as autoridades locais como referência.'});
+ if(p.errors?.length)sections.push({title:'Limite do dado',text:p.errors.join(' ')});
+ const exp=make(0,`Estimativas para o futuro${where}, calculadas a partir do passado e do presente.`,sections);exp.levelLabel='Estimativa estatística (sem alerta)';return exp;
+}

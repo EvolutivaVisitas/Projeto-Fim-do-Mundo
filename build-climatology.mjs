@@ -4,6 +4,7 @@
 import fs from 'node:fs/promises';
 import {PLACES} from './dist/places.mjs';
 import {CLIMATOLOGY,OPEN_METEO,climatologyTable} from './dist/weather-core.mjs';
+import {fitDailyPersistence,fitMonthlyPersistence,serializeModels} from './dist/projection-core.mjs';
 const FILE='dist/climate/places-climatology.json',BATCH=5,sleep=ms=>new Promise(r=>setTimeout(r,ms));
 // Ordem de prioridade: intercala continentes para que um arquivo parcial já cubra o mundo todo.
 function interleaved(){const groups=new Map();for(const p of PLACES){if(!groups.has(p.continent))groups.set(p.continent,[]);groups.get(p.continent).push(p);}
@@ -27,12 +28,12 @@ async function archive(group){
  }
  throw Error('API indisponível; tente mais tarde');
 }
-const todo=interleaved().filter(p=>!out.places[p.id]);
+const todo=interleaved().filter(p=>!out.places[p.id]||!out.places[p.id].model);
 console.log(`${Object.keys(out.places).length} lugares já prontos; ${todo.length} a gerar`);
 for(let i=0;i<todo.length;i+=BATCH){
  const group=todo.slice(i,i+BATCH),arr=await archive(group);
  if(arr==='daily'){console.log('limite diário da API atingido; progresso salvo. Rode novamente amanhã para completar.');break;}
- group.forEach((p,j)=>{const t=climatologyTable(arr[j]);if(t)out.places[p.id]=t;else console.error('sem climatologia:',p.name);});
+ group.forEach((p,j)=>{const t=climatologyTable(arr[j]);if(t){const model=serializeModels(fitDailyPersistence(arr[j]),fitMonthlyPersistence(arr[j]));out.places[p.id]=model?{...t,model}:t;}else console.error('sem climatologia:',p.name);});
  await save();console.log(`${Object.keys(out.places).length}/${PLACES.length}`);
  await sleep(3000);
 }

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {kpLevel,tempLevel,rainLevel,explainGeomagnetic,explainPoint,explainGlobal,explainDaily,explainMonthly,explainForecast,explainSelection,END_OF_WORLD,LEVELS} from './dist/explain.mjs';
+import {kpLevel,tempLevel,rainLevel,explainGeomagnetic,explainPoint,explainGlobal,explainDaily,explainMonthly,explainForecast,explainProjection,explainSelection,END_OF_WORLD,LEVELS} from './dist/explain.mjs';
 const text=e=>e.headline+' '+e.sections.map(s=>s.title+' '+s.text).join(' ');
 // Níveis
 assert.deepEqual([2,4,5,6,8,9].map(kpLevel),[0,1,1,2,3,3]);
@@ -51,4 +51,9 @@ const calmF=explainForecast({forecast:{days:Array.from({length:10},(_,i)=>fd(.2,
 const extF=explainForecast({forecast:{days:Array.from({length:10},(_,i)=>fd(9,i)),rain:null},errors:[]});assert.equal(extF.level,2,'previsão nunca passa de vale acompanhar');
 const noc=explainForecast({forecast:{days:[{date:'2026-11-09',temp:27,anomaly:null,z:null}],rain:null},errors:[]});assert.equal(noc.level,0);assert.match(text(noc),/comparação com o normal não está disponível/);
 const nof=explainForecast({forecast:null,errors:['Open-Meteo (previsão): fonte indisponível.']});assert.equal(nof.level,null);assert.match(text(nof),/Nada foi estimado|nada foi estimado/);
+// Estimativa futura
+const projFx={days:{recentAnomaly:2,usefulDays:5,days:[{date:'2026-11-09',expected:26,lo:24,hi:28,expectedAnomaly:1},{date:'2026-11-12',expected:25,lo:23,hi:27,expectedAnomaly:.4}]},months:{recentAnomaly:1.2,months:[{year:2026,month:10,expected:25,lo:23,hi:27,expectedAnomaly:.5}]},quakes:{years:10,radiusKm:500,rows:[{scope:'global',mag:6,count:1342,perYear:134.2,p7:.93,p30:1},{scope:'local',mag:5,count:0,perYear:0,p7:0,p30:0}]},global:{from:1970,slopePerDecade:.2,points:[{year:2030,value:1.3,lo:1.1,hi:1.5},{year:2050,value:1.7,lo:1.4,hi:2}]},errors:[]};
+const ep=explainProjection(projFx,'Goiânia');assert.equal(ep.levelLabel,'Estimativa estatística (sem alerta)');assert.match(text(ep),/até cerca de 5 dias/);assert.match(text(ep),/não uma previsão de quando ou onde|terremotos não podem ser previstos/);assert.match(text(ep),/93%/);assert.match(text(ep),/menos de 1%|0%/);assert.match(text(ep),/não uma projeção climática/);assert.ok(ep.sections.some(s=>s.title==='É o fim do mundo?'));
+const epNo=explainProjection({days:null,months:null,quakes:null,global:null,errors:['sem dados']},'Goiânia');assert.equal(epNo.level,null);assert.match(text(epNo),/nada foi estimado/i);
+assert.doesNotMatch(text(ep),/apocalipse|catástrofe iminente|certeza de que/i);
 console.log('Passed: levels, plain-language explanations, missing data, global baseline, no alarmism.');
