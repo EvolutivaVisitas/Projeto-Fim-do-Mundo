@@ -1,6 +1,6 @@
 # MagneTerra
 
-## Uso local (sem ChatGPT/Codex)
+## Uso local
 
 - **Abrir o site:** dê dois cliques em `start.bat` (ou `node serve.mjs`) e acesse http://127.0.0.1:4173/. Sem login; só funciona neste computador.
 - **Atualizar os dados:** `daily.bat` (ou `node collect-daily.mjs`) coleta Kp/aurora, tempo/satélite e o panorama global. Há uma tarefa agendada diária que faz isso enquanto o app Claude estiver aberto.
