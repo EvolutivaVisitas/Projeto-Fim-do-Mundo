@@ -1,0 +1,17 @@
+import fs from 'node:fs';
+const p='dist/index.html';let s=fs.readFileSync(p,'utf8');
+s=s.replace('src="app.mjs"','src="app-geophysics.mjs"');
+s=s.replace('Explore anomalias magnéticas da Terra com dados NOAA, mapa interativo e rankings regionais.','Explore anomalias magnéticas e gravitacionais da Terra com mapas, dados científicos e rankings regionais.').replace('MagneTerra · Atlas magnético','MagneTerra · Atlas geofísico').replace('ATLAS MAGNÉTICO','ATLAS GEOFÍSICO').replace('<span class="sourcebadge">','<span class="sourcebadge" id="sourceBadge">');
+s=s.replace('Explore anomalias magnéticas e encontre os maiores contrastes de uma região.','Explore o magnetismo e a gravidade da Terra. Encontre os maiores contrastes de uma região.');
+s=s.replace('<form id="search">','<form id="search"><label class="modepicker">Tipo de anomalia<select id="mode"><option value="magnetic">Magnéticas · nT</option><option value="gravity">Gravitacionais · mGal</option></select></label>');
+s=s.replace('<p class="hint">Coordenadas decimais','<p class="hint" id="coverageHint">Coordenadas decimais');
+s=s.replace('<p>Variações do campo magnético','<p id="modeNote">Variações do campo magnético');
+s=s.replace('<h2>Anomalias magnéticas</h2>','<h2 id="mapTitle">Anomalias magnéticas</h2><p class="hint" id="resolutionNote"></p>');
+s=s.replace('checked> Camada magnética','checked><span id="overlayLabel">Camada magnética</span>');
+s=s.replace('aria-label="Mapa interativo de anomalias magnéticas"','aria-label="Mapa interativo de anomalias geofísicas"');
+s=s.replace('<small>Cores NOAA','<small id="legendInfo">Cores NOAA');
+s=s.replace('Ranking das células retornadas pela NOAA; lacunas na cobertura podem ocultar outros extremos. pontos vizinhos','Ranking das células válidas da grade selecionada; lacunas na cobertura podem ocultar outros extremos. Pontos vizinhos');
+s=s.replace('<p>EMAG2 v3','<p id="sourceDetail">EMAG2 v3').replace('<a href="https://www.ncei.noaa.gov/products/earth-magnetic-model-anomaly-grid-2"','<a id="sourceLink" href="https://www.ncei.noaa.gov/products/earth-magnetic-model-anomaly-grid-2"').replace('<p>Consultamos os centros','<p id="methodDetail">Consultamos os centros');
+s=s.replace('Exploração do campo magnético terrestre · NOAA/NCEI','Magnetismo & gravidade · NOAA/NCEI · Scripps/IGPP · GMT');
+fs.writeFileSync(p,s);
+fs.appendFileSync('dist/style.css','\n.modepicker{font-weight:600;color:#20394b;padding:16px;background:#edf5f2;border:1px solid #c6ddd3;border-radius:6px;margin:24px 0}.modepicker select{font-weight:500}.mapbar .hint{margin:7px 0 0}body[data-mode="gravity"] .spectrum{background:linear-gradient(90deg,rgb(44,91,181),rgb(247,247,243),rgb(197,67,30))}body[data-mode="gravity"] .modepicker{background:#eff2fa;border-color:#c9d3e7}\n');

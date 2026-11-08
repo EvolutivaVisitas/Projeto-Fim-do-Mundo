@@ -1,0 +1,32 @@
+{
+  "dataset": "Scripps/IGPP Earth Free-Air Anomaly",
+  "distribution": "GMT earth_faa_06m_p",
+  "model_over_land": "EGM2008",
+  "unit": "mGal",
+  "width": 3600,
+  "height": 1800,
+  "step": 0.1,
+  "west": -180,
+  "south": -90,
+  "registration": "pixel",
+  "row_order": "south_to_north",
+  "scale": 0.1,
+  "nodata": -32768,
+  "filter_km": 31.5,
+  "coverage_lat": [
+    -80,
+    80
+  ],
+  "downloaded": "2026-09-24T02:32:47.659736+00:00",
+  "source_url": "https://oceania.generic-mapping-tools.org/server/earth/earth_faa/earth_faa_06m_p.grd",
+  "documentation_url": "https://www.generic-mapping-tools.org/remote-datasets/earth-faa.html",
+  "sha256_source": "d4e2d17adae3361dfc1594fecb697c04e53ae7267c651a9bed598a16ac2d45f1",
+  "source_attributes": {
+    "Conventions": "CF-1.7",
+    "GMT_version": "6.7.0_8931e47_2026.01.12 [64-bit] [MP]",
+    "node_offset": "1",
+    "title": "IGPP Earth Free Air Gravity Anomalies v33 at 06 arc minutes",
+    "history": "",
+    "description": "Reduced by Gaussian Cartesian filtering (31.5 km fullwidth) from /tmp/6101/grav_33.1.nc [Sandwell et al., 2019; https://doi.org/10.1016/j.asr.2019.09.011]"
+  }
+}

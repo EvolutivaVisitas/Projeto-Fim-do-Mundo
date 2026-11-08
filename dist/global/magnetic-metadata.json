@@ -1,0 +1,19 @@
+{
+  "source": "NOAA EMAG2 v3 via GMT earth_mag4km_06m_p",
+  "unit": "nT",
+  "scale": 0.4,
+  "nodata": -32768,
+  "resolution_arcmin": 6,
+  "filter_km": 31.5,
+  "altitude_km": 4,
+  "source_url": "https://oceania.generic-mapping-tools.org/server/earth/earth_mag4km/earth_mag4km_06m_p.grd",
+  "attributes": {
+    "Conventions": "CF-1.7",
+    "GMT_version": "6.5.0_a5f7adf_2023.09.21",
+    "node_offset": "1",
+    "title": "EMAG2v3 at 4km altitude Earth Magnetic Anomalies at 06 arc minutes",
+    "history": "",
+    "description": "Reduced by Gaussian Cartesian filtering (31.5 km fullwidth) from EMAG2_V3_20170530.nc [Meyer et al., 2017; https://doi.org/10.7289/V5H70CVX]"
+  },
+  "source_sha256": "b391939eec66c97aa8cba22d5a524d07b6317239507f7d66b56ee3ac8644744e"
+}

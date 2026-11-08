@@ -1,0 +1,2 @@
+import fs from 'node:fs';
+const p='dist/index.html';let s=fs.readFileSync(p,'utf8');s=s.replace('<title>','<meta name="description" content="Explore anomalias magnéticas da Terra com dados NOAA, mapa interativo e rankings regionais."><link rel="icon" href="favicon.svg" type="image/svg+xml"><title>');s=s.replace('Ranking das células da grade;','Ranking das células retornadas pela NOAA; lacunas na cobertura podem ocultar outros extremos.');fs.writeFileSync(p,s);
