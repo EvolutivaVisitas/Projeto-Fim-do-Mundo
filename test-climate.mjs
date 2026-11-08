@@ -15,7 +15,7 @@ assert.deepEqual([0.2,0.6,1.2,1.7].map(climateLevel),[0,1,2,3]);
 const e=explainClimate(s);assert.ok(e.sections.some(x=>x.title==='É o fim do mundo?'&&x.text===END_OF_WORLD_CLIMATE));assert.match(e.sections.map(x=>x.text).join(' '),/1951–1980/);assert.doesNotMatch(e.headline+e.sections.map(x=>x.text).join(' '),/apocalipse|fim dos tempos|irreversível/i);
 assert.equal(explainClimate(null).level,null);assert.match(explainClimate(null).sections[0].text,/Nada foi estimado/);
 // Coletor: falha não destrói o arquivo anterior
-const f=process.env.TEMP+'/gistemp-test.json';await fs.writeFile(f,'ANTERIOR');
+const f=(await import('node:os')).tmpdir()+'/gistemp-test.json';await fs.writeFile(f,'ANTERIOR');
 await assert.rejects(runClimate(f,async()=>({ok:true,text:async()=>'lixo'})));assert.equal(await fs.readFile(f,'utf8'),'ANTERIOR');
 await assert.rejects(runClimate(f,async()=>({ok:false,status:503})),/503/);assert.equal(await fs.readFile(f,'utf8'),'ANTERIOR');
 await fs.rm(f);
