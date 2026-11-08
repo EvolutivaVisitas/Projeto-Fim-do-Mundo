@@ -1,0 +1,63 @@
+name: Site MagneTerra
+
+# Publica a pasta dist no GitHub Pages. Em execuções agendadas (todo dia, ~8h10 de Brasília) ou manuais,
+# coleta antes os dados do dia (NOAA, NASA, Open-Meteo), grava em dist/ e commita. Falha de uma fonte
+# não impede a publicação: o coletor registra o erro e preserva o último dado válido.
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '10 11 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: site
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Coleta diária (Kp, aurora, tempo, satélite, clima global, avisos)
+        continue-on-error: true
+        run: node collect-daily.mjs
+      - name: Climatologia (retoma de onde parou; respeita o limite diário da API)
+        continue-on-error: true
+        run: node build-climatology.mjs
+      - name: Recalcula o panorama global
+        continue-on-error: true
+        run: node collect-weather-global.mjs
+      - name: Commita os dados novos
+        run: |
+          git config user.name "magneterra-bot"
+          git config user.email "magneterra-bot@users.noreply.github.com"
+          git add dist/reports dist/climate
+          if git diff --cached --quiet; then echo "Sem mudanças."; else git commit -m "Coleta automática $(date -u +%F)" && git push; fi
+
+  deploy:
+    needs: collect
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
