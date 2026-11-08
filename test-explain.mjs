@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {kpLevel,tempLevel,rainLevel,explainGeomagnetic,explainPoint,explainGlobal,explainDaily,explainMonthly,explainSelection,END_OF_WORLD,LEVELS} from './dist/explain.mjs';
+import {kpLevel,tempLevel,rainLevel,explainGeomagnetic,explainPoint,explainGlobal,explainDaily,explainMonthly,explainForecast,explainSelection,END_OF_WORLD,LEVELS} from './dist/explain.mjs';
 const text=e=>e.headline+' '+e.sections.map(s=>s.title+' '+s.text).join(' ');
 // Níveis
 assert.deepEqual([2,4,5,6,8,9].map(kpLevel),[0,1,1,2,3,3]);
@@ -43,4 +43,12 @@ const clim=explainSelection({kinds:['climate'],climate:csum});assert.equal(clim.
 assert.equal(explainSelection({kinds:[]}).level,null);assert.match(text(explainSelection({kinds:[]})),/Escolha pelo menos uma/);
 const miss=explainSelection({kinds:['magnetic','climate'],magnetic:null,climate:null});assert.match(text(miss),/não está disponível agora\. Nada foi estimado/);assert.match(text(miss),/Nada foi estimado/);
 assert.doesNotMatch(text(all),/apocalipse|catástrofe iminente|fim dos tempos/i);
+// Previsão
+const fd=(a,t)=>({date:'2026-11-'+String(9+t).padStart(2,'0'),temp:25+a,rain:1,climMean:25,anomaly:a,z:a/1.2});
+const hotF={forecast:{days:Array.from({length:10},(_,i)=>fd(5,i)),rain:{sum:80,climMean:30,pct:267}},errors:[]};
+const ef=explainForecast(hotF,'Goiânia');assert.equal(ef.level,2);assert.match(text(ef),/acima do normal/);assert.match(text(ef),/alagamento/);assert.match(text(ef),/não é um aviso oficial|Não é um aviso oficial|não prevê terremotos/);assert.match(text(ef),/Quão confiável/);
+const calmF=explainForecast({forecast:{days:Array.from({length:10},(_,i)=>fd(.2,i)),rain:null},errors:[]});assert.equal(calmF.level,0);
+const extF=explainForecast({forecast:{days:Array.from({length:10},(_,i)=>fd(9,i)),rain:null},errors:[]});assert.equal(extF.level,2,'previsão nunca passa de vale acompanhar');
+const noc=explainForecast({forecast:{days:[{date:'2026-11-09',temp:27,anomaly:null,z:null}],rain:null},errors:[]});assert.equal(noc.level,0);assert.match(text(noc),/comparação com o normal não está disponível/);
+const nof=explainForecast({forecast:null,errors:['Open-Meteo (previsão): fonte indisponível.']});assert.equal(nof.level,null);assert.match(text(nof),/Nada foi estimado|nada foi estimado/);
 console.log('Passed: levels, plain-language explanations, missing data, global baseline, no alarmism.');

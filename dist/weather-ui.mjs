@@ -1,5 +1,5 @@
-import {LAYERS,gibsTemplate,findLatestFrame,frameTimes,ageLabel,collectAnomaly,collectMonthly,monthlySvg,searchPlace} from './weather-core.mjs';
-import {explainPoint,explainGlobal,explainMonthly} from './explain.mjs';
+import {LAYERS,gibsTemplate,findLatestFrame,frameTimes,ageLabel,collectAnomaly,collectMonthly,monthlySvg,collectForecast,forecastSvg,searchPlace} from './weather-core.mjs';
+import {explainPoint,explainGlobal,explainMonthly,explainForecast} from './explain.mjs';
 import {bindExplain,renderExplanation} from './explain-ui.mjs';
 let lastAnomaly=null,pointLabel='';
 const $=id=>document.getElementById(id),fmt=(v,n=1)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n}).format(v),sign=v=>(v>0?'+':v<0?'−':'')+fmt(Math.abs(v));
@@ -33,11 +33,20 @@ async function loadMonthly(){const id=++monthlyId;$('loadMonthly').disabled=true
  if(!m.rows){$('monthlyState').textContent=m.errors.join(' ');$('monthlyState').classList.add('error');$('monthlyFig').hidden=true;$('explainMonthly').hidden=true;return;}
  if(monthlyUrl)URL.revokeObjectURL(monthlyUrl);monthlyUrl=URL.createObjectURL(new Blob([monthlySvg(m.rows,pointLabel)],{type:'image/svg+xml'}));$('monthlyChart').src=monthlyUrl;$('downloadMonthly').href=monthlyUrl;$('downloadMonthly').download='ultimos-12-meses.svg';$('monthlyFig').hidden=false;$('explainMonthly').hidden=false;
  $('monthlyState').textContent='Meses completos dos últimos 12, comparados à média mensal ERA5 1991–2020. Meses sem dados completos aparecem como “s/d”.';}
+let forecast=null,forecastUrl,forecastId=0;
+function resetForecast(){forecastId++;forecast=null;$('forecastFig').hidden=true;$('explainForecast').hidden=true;$('forecastExplain').hidden=true;$('explainForecast').textContent='Explicar em linguagem simples';$('forecastState').textContent='';$('forecastState').classList.remove('error');$('loadForecast').disabled=false;}
+// Previsão dos próximos dias do ponto escolhido, só sob demanda (usa a cota gratuita da Open-Meteo).
+async function loadForecast(){const id=++forecastId;$('loadForecast').disabled=true;$('forecastState').textContent='Consultando a previsão (Open-Meteo)…';$('forecastState').classList.remove('error');
+ let r;try{r=await collectForecast(point.lat,point.lon);}catch(e){r={forecast:null,errors:['Consulta indisponível: '+e.message]};}
+ if(id!==forecastId)return;$('loadForecast').disabled=false;forecast=r;
+ if(!r.forecast){$('forecastState').textContent=r.errors.join(' ');$('forecastState').classList.add('error');$('forecastFig').hidden=true;$('explainForecast').hidden=true;return;}
+ if(forecastUrl)URL.revokeObjectURL(forecastUrl);forecastUrl=URL.createObjectURL(new Blob([forecastSvg(r.forecast,pointLabel)],{type:'image/svg+xml'}));$('forecastChart').src=forecastUrl;$('downloadForecast').href=forecastUrl;$('downloadForecast').download='previsao-anomalias.svg';$('forecastFig').hidden=false;$('explainForecast').hidden=false;
+ $('forecastState').textContent=(r.hasClimatology?'Previsão dos próximos dias comparada à média ERA5 1991–2020. ':'Previsão sem comparação com o normal (climatologia indisponível). ')+r.errors.join(' ');if(r.errors.length)$('forecastState').classList.add('error');}
 let anomalyId=0;
 // Só a consulta mais recente atualiza a tela: cliques rápidos não deixam uma resposta antiga sobrescrever a nova.
 async function anomaly(){const id=++anomalyId;$('wxAnomalyNote').textContent='Consultando Open-Meteo (análise recente e 30 anos de ERA5)…';$('wxAnomalyNote').classList.remove('error');$('wxCards').replaceChildren();lastAnomaly=null;
  try{const a=await collectAnomaly(point.lat,point.lon);if(id===anomalyId)renderAnomaly(a);}catch(e){if(id!==anomalyId)return;$('wxAnomalyNote').textContent='Consulta indisponível: '+e.message;$('wxAnomalyNote').classList.add('error');}}
-function select(lat,lon,label){pointLabel=label??'';resetMonthly();point={lat:Math.max(-89,Math.min(89,lat)),lon:((lon+180)%360+360)%360-180};marker?.remove();marker=L.circleMarker([point.lat,point.lon],{radius:7,color:'#fff',weight:3,fillColor:'#101b2b',fillOpacity:1}).addTo(map);$('wxPoint').textContent=(label?label+' · ':'')+`${fmt(point.lat,3)}, ${fmt(point.lon,3)}`;anomaly();}
+function select(lat,lon,label){pointLabel=label??'';resetMonthly();resetForecast();point={lat:Math.max(-89,Math.min(89,lat)),lon:((lon+180)%360+360)%360-180};marker?.remove();marker=L.circleMarker([point.lat,point.lon],{radius:7,color:'#fff',weight:3,fillColor:'#101b2b',fillOpacity:1}).addTo(map);$('wxPoint').textContent=(label?label+' · ':'')+`${fmt(point.lat,3)}, ${fmt(point.lon,3)}`;anomaly();}
 function start(){if(started||typeof L==='undefined')return;started=true;
  map=L.map('wxMap',{worldCopyJump:true,minZoom:2,maxZoom:10}).setView([-16.76,-49.34],4);
  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
@@ -80,7 +89,8 @@ $('wxSearch').onsubmit=async e=>{e.preventDefault();const box=$('wxResults');box
  try{const found=await searchPlace($('wxQuery').value);if(!found.length){box.append(li('Nenhum lugar encontrado.'));return;}
   for(const p of found){const item=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=[p.name,p.region,p.country].filter(Boolean).join(', ');b.onclick=()=>{map.setView([p.lat,p.lon],6);select(p.lat,p.lon,p.name);box.replaceChildren();};item.append(b);box.append(item);}}
  catch(err){box.append(li('Busca indisponível: '+err.message,'error'));}};
-$('loadMonthly').onclick=loadMonthly;
+$('loadMonthly').onclick=loadMonthly;$('loadForecast').onclick=loadForecast;
+bindExplain($('explainForecast'),$('forecastExplain'),()=>explainForecast(forecast,pointLabel));
 bindExplain($('explainMonthly'),$('monthlyExplain'),()=>explainMonthly(monthly,pointLabel));
 bindExplain($('explainPoint'),$('wxExplain'),()=>explainPoint(lastAnomaly,pointLabel));
 bindExplain($('explainGlobal'),$('wxGlobalExplain'),()=>explainGlobal(global));

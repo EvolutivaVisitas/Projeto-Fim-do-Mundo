@@ -204,3 +204,40 @@ export function monthlySvg(rows,label=''){
  s+=txt(left,540,'Fonte: Open-Meteo (reanálise ERA5). “s/d” = mês sem dados completos; nada é preenchido.')+'</svg>';
  return s;
 }
+
+// ---- Previsão de anomalias: próximos dias (Open-Meteo, até 16 dias) contra a climatologia ERA5 da mesma data ----
+export function forecastDailyUrl(lat,lon){return `${OPEN_METEO.forecast}?${new URLSearchParams({latitude:lat.toFixed(4),longitude:lon.toFixed(4),daily:'temperature_2m_mean,precipitation_sum',forecast_days:'16',timezone:'UTC'})}`;}
+// Só dias futuros (a partir de amanhã, UTC). Valores ausentes ficam null; nada é preenchido.
+export function buildForecastAnomalies(fc,archive,now=Date.now()){
+ const d=fc?.daily;if(!d||!Array.isArray(d.time))return null;
+ const today=new Date(now).toISOString().slice(0,10),days=[];
+ d.time.forEach((t,i)=>{if(t<=today)return;const temp=num(d.temperature_2m_mean?.[i]),rain=num(d.precipitation_sum?.[i]),c=archive?buildClimatology(archive,Date.parse(t+'T12:00:00Z')):null;
+  const row={date:t,temp,rain,climMean:c?.temps?.mean??null,anomaly:null,z:null};
+  if(temp!==null&&c?.temps){row.anomaly=temp-c.temps.mean;row.z=row.anomaly/c.temps.sd;}
+  days.push(row);});
+ if(!days.length)return null;
+ let rain=null;const first7=days.slice(0,7);
+ if(first7.length===7&&first7.every(r=>r.rain!==null)){const sum=first7.reduce((s,r)=>s+r.rain,0),c=archive?buildClimatology(archive,Date.parse(first7[6].date+'T12:00:00Z')):null;
+  rain={sum,climMean:c?.rain7?.mean??null,pct:c?.rain7&&c.rain7.mean>.5?sum/c.rain7.mean*100:null};}
+ return {days,rain,generatedFor:today};
+}
+export async function collectForecast(lat,lon,now=Date.now(),fetcher=fetch){
+ const [f,a]=await Promise.allSettled([getJson(forecastDailyUrl(lat,lon),fetcher),climArchive(lat,lon,fetcher)]);
+ const errors=[];if(f.status==='rejected')errors.push('Open-Meteo (previsão): fonte indisponível.');if(a.status==='rejected')errors.push('Open-Meteo (ERA5): fonte indisponível; sem comparação com o normal.');
+ const fc=f.status==='fulfilled'?buildForecastAnomalies(f.value,a.status==='fulfilled'?a.value:null,now):null;
+ if(f.status==='fulfilled'&&!fc)errors.push('Previsão sem dados válidos.');
+ return {lat,lon,forecast:fc,errors,collectedAt:new Date(now).toISOString(),hasClimatology:!!fc&&fc.days.some(r=>r.anomaly!==null)};
+}
+// Barras da anomalia prevista de temperatura por dia. Dias além de 7 saem mais claros (previsão menos confiável).
+export function forecastSvg(fc,label=''){
+ const days=fc?.days;
+ if(!days?.length)return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 120"><text x="20" y="60" font-family="sans-serif" font-size="18">Previsão indisponível</text></svg>';
+ const W=1000,left=60,bw=W/days.length,vals=days.map(r=>r.anomaly).filter(v=>v!==null),amax=Math.max(3,...vals.map(Math.abs)),y0=170,h=110,txt=(x,y,t,extra='')=>`<text x="${x}" y="${y}" font-family="sans-serif" font-size="12" fill="#526579" ${extra}>${xml(t)}</text>`;
+ let s=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1100 330"><rect width="1100" height="330" fill="#f7fafc"/><text x="${left}" y="26" font-family="sans-serif" font-size="18" fill="#16344c">Previsão: temperatura média diária vs. normal 1991–2020 (°C)${label?' · '+xml(label):''}</text>`;
+ s+=`<path d="M${left} ${y0}H${left+W}" stroke="#7b8b99"/>`+txt(left-8,y0+4,'0','text-anchor="end"')+txt(left-8,y0-h+4,'+'+amax.toFixed(0),'text-anchor="end"')+txt(left-8,y0+h+4,'−'+amax.toFixed(0),'text-anchor="end"');
+ days.forEach((r,i)=>{const x=left+i*bw+3,op=i<7?1:.5;
+  if(r.anomaly!==null){const hh=Math.abs(r.anomaly)/amax*h,y=r.anomaly>=0?y0-hh:y0;s+=`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${(bw-6).toFixed(1)}" height="${Math.max(hh,1).toFixed(1)}" fill="${r.anomaly>=0?'#c5431e':'#2c5bb5'}" opacity="${op}"><title>${r.date}: ${r.anomaly>0?'+':''}${r.anomaly.toFixed(1)} °C (previsto ${r.temp.toFixed(1)} °C)</title></rect>`;}else s+=txt(x+bw/2-6,y0+4,'s/d','text-anchor="middle"');
+  s+=txt(x+bw/2-3,y0+h+24,r.date.slice(8,10)+'/'+r.date.slice(5,7),'text-anchor="middle"');});
+ s+=txt(left,y0+h+54,'Barras claras: mais de 7 dias à frente, previsão menos confiável. “s/d” = sem comparação disponível.')+txt(left,y0+h+74,'Fonte: Open-Meteo (modelos de previsão) e reanálise ERA5. Tendência, não garantia.')+'</svg>';
+ return s;
+}

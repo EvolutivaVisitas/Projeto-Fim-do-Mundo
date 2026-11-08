@@ -22,6 +22,11 @@ O coletor diário (`collect-daily.mjs`) também grava em cada boletim o campo `w
 - **Panorama global:** tabela e marcadores coloridos de 150 lugares curados (`dist/places.mjs`: capitais brasileiras e cidades de todos os continentes), com filtros por continente, nome/país e ordenação (mais quente/frio, mais/menos chuva). **Não é uma grade regular**: regiões fora da lista não aparecem. Os dados vêm de `reports/weather-latest.json`, gravado por `collect-weather-global.mjs` (também chamado por `collect-daily.mjs`); a página mostra a hora da coleta e avisa se estiver antiga.
 - **Climatologia pré-calculada:** `node build-climatology.mjs` gera `dist/climate/places-climatology.json` (ERA5 1991–2020, ±7 dias, 366 dias por lugar). Rode raramente; sem esse arquivo o panorama não calcula anomalias.
 
+### Avisos oficiais e previsões
+
+- **Avisos oficiais** (seção própria, consulta ao vivo no navegador): terremotos já ocorridos de M 4,5+ nas últimas 24 h (USGS), avisos e **previsão de Kp de 3 dias** (NOAA SWPC) e desastres laranja/vermelhos (GDACS, ONU/UE). O MagneTerra **só repassa** o que as agências publicam, com nível de atenção derivado da classificação delas (só conta o que vale agora). **Não prevê terremotos nem erupções e não emite alertas próprios.** Avisos do INMET (Brasil) não estão integrados (o servidor deles não aceitou consultas); o app aponta para alertas2.inmet.gov.br. `node test-alerts.mjs` valida.
+- **Previsão dos próximos dias do lugar** (botão na seção Tempo e satélite): temperatura média diária prevista (até 15 dias) vs. normal ERA5 1991–2020 da mesma data, e chuva dos próximos 7 dias vs. normal. Dias além de 7 saem mais claros (menos confiáveis). O nível nunca passa de “vale acompanhar”: eventos severos são anunciados pelos serviços oficiais.
+
 ### Últimos 12 meses do lugar
 
 O botão **Ver os últimos 12 meses do lugar** (seção Tempo e satélite) mostra, para o ponto escolhido, a anomalia mensal de temperatura e a chuva em % do normal dos últimos 12 meses completos, comparadas à média mensal ERA5 1991–2020 (mesma fonte, sem misturar modelos). Só roda sob demanda, porque cada consulta usa a cota gratuita da Open-Meteo. Meses sem dados completos aparecem como “s/d” e não são preenchidos. Há explicação em linguagem simples.

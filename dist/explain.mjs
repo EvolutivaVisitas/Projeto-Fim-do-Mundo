@@ -1,3 +1,4 @@
+import {alertsLevel} from "./alerts-core.mjs";
 // Explicações em linguagem simples, geradas por regras fixas (sem IA externa e sem inventar dados).
 // Objetivo: dizer, para leigos, se o que foi medido está normal, quanto foge do normal e se há motivo para se preocupar.
 // Princípios: nunca alarmar sem base; sempre separar "tempo de poucos dias" de "clima"; avisar quando faltam dados.
@@ -151,4 +152,38 @@ export function explainSelection({kinds,magnetic=null,gravity=null,climate=null,
  if(staticOnly)exp.levelLabel='Referência estática (sem alerta)';
  else if(chosen.length>1)exp.levelLabel='Clima: '+exp.levelLabel;
  return exp;
+}
+
+// ---- Avisos oficiais (terremotos ocorridos, clima espacial e desastres; ver alerts-core.mjs) ----
+export function explainAlerts(r,now=Date.now()){
+ if(!r||(!r.quakes&&!r.space&&!r.disasters))return make(null,'Não dá para avaliar os avisos oficiais agora.',[{title:'O que aconteceu',text:['As fontes oficiais não responderam.',...(r?.errors??[])].join(' ')+' Nada foi estimado.'},{title:'Onde ver',text:'Consulte diretamente a Defesa Civil, o INMET (alertas2.inmet.gov.br), o USGS e a NOAA.'}]);
+ const level=alertsLevel(r,now),sections=[],f1x=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1}).format(v);
+ if(r.quakes){const q=r.quakes,top=q[0];sections.push({title:'Terremotos já ocorridos',text:q.length?`Nas últimas 24 horas o USGS registrou ${q.length} terremoto(s) de magnitude 4,5 ou mais no mundo. O maior foi M ${f1x(top.mag)}, em ${top.place}. Isso é normal: tremores desse porte acontecem várias vezes por dia no planeta, e a maioria ocorre longe de áreas habitadas. Terremotos de magnitude 7 ou mais ocorrem cerca de 15 vezes por ano.`:'Nas últimas 24 horas o USGS não listou terremotos de magnitude 4,5 ou mais.'});
+  if(q.some(x=>x.tsunami))sections.push({title:'Tsunami',text:'Algum dos terremotos listados está marcado com possibilidade de tsunami. Consulte tsunami.gov e a Defesa Civil da sua região.'});}
+ if(r.space){const act=r.space.find(a=>a.scale&&/ALERT|WARNING|WATCH/.test(a.kind??'')&&now-a.time<=12*3600000);sections.push({title:'Clima espacial (NOAA)',text:act?`A NOAA emitiu há pouco um aviso: “${act.text}” (escala ${act.scale}). Tempestades geomagnéticas assim não oferecem risco à saúde de quem está na superfície; afetam, no máximo, satélites, GPS de precisão e redes elétricas.`:'Não há avisos de clima espacial das últimas 12 horas.'});}
+ if(r.kpForecast){const k=r.kpForecast;sections.push({title:'Previsão geomagnética (próximos dias)',text:`A NOAA prevê Kp de até ${f1x(k.max)} nas próximas ${k.hours} horas${k.max>=5?' (nível de tempestade geomagnética)':', sem tempestade geomagnética prevista'}. É uma previsão probabilística de poucos dias e pode mudar.`});}
+ if(r.disasters){const cur=r.disasters.filter(d=>d.current),ended=r.disasters.filter(d=>!d.current);sections.push({title:'Desastres (GDACS, ONU/UE)',text:cur.length?`Há ${cur.length} evento(s) de alerta laranja ou vermelho em andamento: ${cur.slice(0,3).map(d=>`${d.type}${d.country?' ('+d.country+')':''}`).join('; ')}. Se você está na região, siga a Defesa Civil local.`:`Nenhum evento de alerta laranja ou vermelho está em andamento agora.${ended.length?` Nos últimos 7 dias houve ${ended.length} já encerrado(s).`:''}`});}
+ sections.push({title:'Isso afeta você?',text:'Depende de onde você está. Terremotos e desastres são locais: o que importa é o aviso da autoridade do seu município ou país.'},
+  {title:'Devo me preocupar?',text:level===0?'Não há nada fora do rotineiro nas fontes consultadas.':level===1?'Há eventos moderados registrados, comuns no mundo. Só se preocupe se estiver perto de algum deles.':level===2?'Há eventos fortes ou avisos relevantes. Se estiver perto, acompanhe a Defesa Civil.':'Há eventos graves classificados pelas agências. Se estiver na região, siga as instruções oficiais imediatamente.'},
+  {title:'Limites',text:'O MagneTerra apenas repassa o que USGS, NOAA e GDACS publicaram: não prevê terremotos nem erupções (isso não é possível hoje) e não emite alertas próprios. Os avisos do INMET (Brasil) não estão integrados: veja alertas2.inmet.gov.br. '+(r.errors?.length?r.errors.join(' '):'')});
+ return make(level,level===0?'Nada fora do rotineiro nos avisos oficiais.':level===1?'Há eventos moderados nos avisos oficiais, comuns no mundo.':level===2?'Há avisos oficiais relevantes: vale acompanhar.':'Há eventos graves nos avisos oficiais: siga as instruções das autoridades.',sections);
+}
+
+// ---- Previsão de anomalias dos próximos dias (ver weather-core buildForecastAnomalies) ----
+export function explainForecast(res,place=''){
+ const where=place?` em ${place}`:' neste ponto',fc=res?.forecast,days=fc?.days??[],scored=days.filter(d=>d.anomaly!==null);
+ if(!fc||!days.length)return make(null,`Não dá para avaliar a previsão${where}.`,[{title:'O que aconteceu',text:[...(res?.errors??[]),'Sem previsão válida; nada foi estimado.'].join(' ')}]);
+ const f1x=v=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1}).format(v),sections=[],fmtDay=d=>d.date.slice(8,10)+'/'+d.date.slice(5,7);
+ let level=0;
+ if(scored.length){const near=scored.slice(0,7),use=near.length?near:scored,avg=use.reduce((s,d)=>s+d.anomaly,0)/use.length,top=[...use].sort((a,b)=>Math.abs(b.anomaly)-Math.abs(a.anomaly))[0];
+  const lv=Math.max(...use.map(d=>tempLevel(d.z,d.anomaly)));level=Math.min(lv,2);// previsão nunca passa de "vale acompanhar"
+  sections.push({title:'Temperatura prevista',text:`Nos próximos ${use.length} dias a temperatura média diária deve ficar ${f1x(Math.abs(avg))} °C ${avg>=0?'acima':'abaixo'} do normal em média. O dia mais fora do normal deve ser ${fmtDay(top)} (${top.anomaly>0?'+':'−'}${f1x(Math.abs(top.anomaly))} °C, previsto ${f1x(top.temp)} °C).`},
+   {title:'Isso é bom ou ruim?',text:level===0?'Os dias previstos ficam dentro da variação normal: nem bom nem ruim.':avg>0?'Dias bem mais quentes que o normal pedem cuidado com hidratação e exposição ao sol, principalmente para crianças, idosos e animais.':'Dias bem mais frios que o normal pedem agasalho e atenção a pessoas vulneráveis.'});}
+ else sections.push({title:'Temperatura prevista',text:'A previsão existe, mas a comparação com o normal não está disponível agora; sem isso não dá para dizer se os dias serão normais.'});
+ if(fc.rain){const r=fc.rain;sections.push({title:'Chuva prevista (7 dias)',text:`A previsão soma ${f1x(r.sum)} mm nos próximos 7 dias${r.pct===null||r.climMean===null?'.':`, cerca de ${new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(r.pct)}% do normal para a época (${f1x(r.climMean)} mm).`} ${r.pct!==null&&r.pct>=200?'É bem mais que o normal; se a chuva vier concentrada, acompanhe os avisos locais de alagamento.':r.pct!==null&&r.pct<=25?'É bem menos que o normal para a semana.':'Dentro do que se espera para a época.'}`});}
+ sections.push({title:'Quão confiável é?',text:'Previsões de tempo são boas até uns 3 a 5 dias e perdem precisão rapidamente depois de 7. Use os dias mais distantes como tendência, não como garantia. Valores são do modelo na grade, não de uma estação.'},
+  {title:'Devo me preocupar?',text:level===0?'Não há motivo para preocupação especial.':'Não é motivo de pânico, mas vale acompanhar a previsão e os avisos do serviço de meteorologia da sua região nos próximos dias.'},
+  {title:'Limites',text:'Esta é uma previsão estatística de tempo, não um aviso oficial. Eventos severos (tempestades, ciclones) são anunciados pelo INMET, pela Defesa Civil e serviços equivalentes. O app não prevê terremotos ou erupções.'});
+ if(res?.errors?.length)sections.push({title:'Limite do dado',text:res.errors.join(' ')});
+ return make(level,level===0?`A previsão${where} para os próximos dias é de tempo dentro do normal.`:level===1?`A previsão${where} indica dias um pouco fora do normal.`:`A previsão${where} indica dias bem fora do normal; vale acompanhar.`,sections);
 }

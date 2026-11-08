@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import {LAYERS,gibsTime,gibsTemplate,floorTime,firstCandidate,frameTimes,ageLabel,buildClimatology,buildAnomaly,recentMonthsRange,recentMonthsUrl,monthlyClimatology,buildMonthlyAnomalies,collectMonthly,monthlySvg,climatologyTable,dayIndex,collectGlobalWeather,searchPlace,findLatestFrame,collectDailyWeather,classifyZ,classifyRain,forecastUrl,archiveUrl} from './dist/weather-core.mjs';
+import {LAYERS,gibsTime,gibsTemplate,floorTime,firstCandidate,frameTimes,ageLabel,buildClimatology,buildAnomaly,forecastDailyUrl,buildForecastAnomalies,collectForecast,forecastSvg,recentMonthsRange,recentMonthsUrl,monthlyClimatology,buildMonthlyAnomalies,collectMonthly,monthlySvg,climatologyTable,dayIndex,collectGlobalWeather,searchPlace,findLatestFrame,collectDailyWeather,classifyZ,classifyRain,forecastUrl,archiveUrl} from './dist/weather-core.mjs';
 const now=Date.parse('2026-11-08T00:52:00Z');
 // Tempo GIBS
 assert.equal(gibsTime(LAYERS.geocolor,Date.parse('2026-11-07T23:50:00Z')),'2026-11-07T23:50:00Z');
@@ -64,4 +64,15 @@ const mar=ma.find(r=>r.year===2026&&r.month===2);assert.equal(mar.tempMean,null)
 assert.equal(buildMonthlyAnomalies(null,archive,now),null);assert.equal(buildMonthlyAnomalies({daily:{time:rt,temperature_2m_mean:rtemp,precipitation_sum:rrain}},{daily:{time:['1991-01-01'],temperature_2m_mean:[1],precipitation_sum:[1]}},now),null);
 const mf=await collectMonthly(1,2,now,async()=>{throw Error('offline');});assert.equal(mf.rows,null);assert.ok(mf.errors.length>=1);
 assert.match(monthlySvg(ma,'Teste'),/<svg/);assert.match(monthlySvg(ma),/s\/d/);assert.match(monthlySvg(null),/indisponíveis/);
+// Previsão dos próximos dias
+assert.match(forecastDailyUrl(1,2),/forecast_days=16/);
+const ft=[],fT=[],fR=[];for(let i=0;i<16;i++){const ms=Date.UTC(2026,10,8+i);ft.push(new Date(ms).toISOString().slice(0,10));fT.push(i===3?null:28);fR.push(i<8?3:0);}
+const fa=buildForecastAnomalies({daily:{time:ft,temperature_2m_mean:fT,precipitation_sum:fR}},archive,now);
+assert.equal(fa.days[0].date,'2026-11-09');assert.equal(fa.days.length,15);// só dias futuros
+assert.ok(Math.abs(fa.days[0].anomaly-3)<.1);const nul=fa.days.find(d=>d.date==='2026-11-11');assert.equal(nul.temp,null);assert.equal(nul.anomaly,null);// dia sem dado não é preenchido
+assert.ok(fa.rain&&Math.abs(fa.rain.sum-21)<1e-9);assert.ok(Math.abs(fa.rain.pct-150)<5);
+assert.equal(buildForecastAnomalies(null,archive,now),null);
+const nc=buildForecastAnomalies({daily:{time:ft,temperature_2m_mean:fT,precipitation_sum:fR}},null,now);assert.equal(nc.days[0].anomaly,null);assert.equal(nc.rain.pct,null);
+const cf=await collectForecast(1,2,now,async()=>{throw Error('offline');});assert.equal(cf.forecast,null);assert.ok(cf.errors.length>=1);
+assert.ok(forecastSvg(fa,"Teste").includes('s/d'));assert.match(forecastSvg(null),/indisponível/);
 console.log('Passed: GIBS time/URLs, climatology, temperature/rain anomalies, missing data.');
