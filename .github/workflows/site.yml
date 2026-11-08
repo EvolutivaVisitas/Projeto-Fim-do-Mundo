@@ -1,13 +1,17 @@
 name: Site MagneTerra
 
-# Publica a pasta dist no GitHub Pages. Em execuções agendadas (todo dia, ~8h10 de Brasília) ou manuais,
-# coleta antes os dados do dia (NOAA, NASA, Open-Meteo), grava em dist/ e commita. Falha de uma fonte
-# não impede a publicação: o coletor registra o erro e preserva o último dado válido.
+# Tudo automático:
+#  - a cada push: roda os testes e publica a pasta dist no GitHub Pages;
+#  - todo dia (~8h10 de Brasília): coleta Kp, aurora, tempo, satélite, clima global e panorama; commita; publica;
+#  - a cada 4 h enquanto a climatologia dos 150 lugares não estiver completa: retoma a geração (a API gratuita limita
+#    por hora/dia), commita e publica. Quando completa, essas execuções extras não fazem nada.
+# Falha de uma fonte não impede a publicação: o coletor registra o erro e preserva o último dado válido.
 on:
   push:
     branches: [main]
   schedule:
     - cron: '10 11 * * *'
+    - cron: '35 */4 * * *'
   workflow_dispatch:
 
 permissions:
@@ -23,30 +27,49 @@ jobs:
   collect:
     if: github.event_name != 'push'
     runs-on: ubuntu-latest
+    outputs:
+      skip: ${{ steps.plan.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Coleta diária (Kp, aurora, tempo, satélite, clima global, avisos)
+      - name: Situação da climatologia
+        id: status
+        run: node climatology-status.mjs
+      - name: Decide o que fazer nesta execução
+        id: plan
+        run: |
+          # Execução extra (a cada 4 h) com climatologia já completa: nada a fazer.
+          if [ "${{ github.event.schedule }}" = "35 */4 * * *" ] && [ "${{ steps.status.outputs.complete }}" = "true" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "Climatologia completa: execução extra dispensada."
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+          if [ "${{ github.event.schedule }}" = "35 */4 * * *" ]; then echo "daily=false" >> "$GITHUB_OUTPUT"; else echo "daily=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Coleta diária (Kp, aurora, tempo, satélite, clima global)
+        if: steps.plan.outputs.skip != 'true' && steps.plan.outputs.daily == 'true'
         continue-on-error: true
         run: node collect-daily.mjs
-      - name: Climatologia (retoma de onde parou; respeita o limite diário da API)
+      - name: Climatologia (retoma de onde parou; respeita o limite da API)
+        if: steps.plan.outputs.skip != 'true' && steps.status.outputs.complete != 'true'
         continue-on-error: true
         run: node build-climatology.mjs
       - name: Recalcula o panorama global
+        if: steps.plan.outputs.skip != 'true'
         continue-on-error: true
         run: node collect-weather-global.mjs
       - name: Commita os dados novos
+        if: steps.plan.outputs.skip != 'true'
         run: |
           git config user.name "magneterra-bot"
           git config user.email "magneterra-bot@users.noreply.github.com"
           git add dist/reports dist/climate
-          if git diff --cached --quiet; then echo "Sem mudanças."; else git commit -m "Coleta automática $(date -u +%F)" && git push; fi
+          if git diff --cached --quiet; then echo "Sem mudanças."; else git commit -m "Coleta automática $(date -u +%F-%H%M)" && git pull --rebase -q && git push; fi
 
   deploy:
     needs: collect
-    if: ${{ !cancelled() }}
+    if: ${{ !cancelled() && needs.collect.outputs.skip != 'true' }}
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -55,6 +78,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: main
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'push'
+        with:
+          node-version: 22
+      - name: Testes (só em push; impedem publicar código quebrado)
+        if: github.event_name == 'push'
+        run: |
+          for t in test-monitor test-weather test-explain test-climate test-alerts test-outlook test-projection; do
+            echo "== $t"; node $t.mjs
+          done
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

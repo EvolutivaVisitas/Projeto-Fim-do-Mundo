@@ -1,5 +1,14 @@
 # MagneTerra
 
+## Automação (GitHub Actions)
+
+O workflow `.github/workflows/site.yml` deixa tudo automático no GitHub, sem o computador ligado:
+- **A cada push** na `main`: roda os testes (monitor, tempo, explicações, clima, avisos, leitura geral, estimativas) e só então publica `dist` no GitHub Pages. Código quebrado não vai ao ar.
+- **Todo dia, ~8h10 de Brasília:** coleta Kp, aurora, tempo/satélite, clima global e panorama de 150 lugares; commita os dados em `dist/reports` e `dist/climate`; republica o site.
+- **A cada 4 horas, enquanto a climatologia não estiver completa:** retoma `build-climatology.mjs` (a API gratuita limita por hora/dia), commita e republica. Quando `climatology-status.mjs` indica 150/150 lugares com modelo, essas execuções extras se dispensam sozinhas.
+- Falha de uma fonte não impede a publicação: o erro é registrado e o último dado válido é preservado. Os avisos oficiais, a previsão e as estimativas são calculados ao vivo no navegador de quem abre o site.
+- Observação do GitHub: agendamentos de repositórios públicos podem ser pausados após 60 dias sem atividade; as coletas automáticas commitam dados, o que conta como atividade.
+
 ## Uso local (sem ChatGPT/Codex)
 
 - **Abrir o site:** dê dois cliques em `start.bat` (ou `node serve.mjs`) e acesse http://127.0.0.1:4173/. Sem login; só funciona neste computador.
