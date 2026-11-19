@@ -23,3 +23,14 @@ body[data-mode="climate"] .spectrum{background:linear-gradient(90deg,#2c5bb5,#f7
 .sky .skygrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:16px 0}.skymoon{display:flex;align-items:center;gap:14px}.skymoon strong{display:block;font:500 22px "Space Grotesk";margin-bottom:4px}.skymoon p{margin:0;font-size:13px;line-height:1.55;color:#44566a}.moonDark{fill:#1c2535}.moonLit{fill:#f4f1e4}.sky .prtable td:last-child{color:#64748b;white-space:nowrap}.sky .tablewrap{overflow-x:auto}#skyStamp.error{color:#ac293c}@media(max-width:1100px){.sky .skygrid{grid-template-columns:1fr}}
 
 .mapctl{display:flex;align-items:center;gap:22px;flex-wrap:wrap;justify-content:flex-end}.opac{display:flex;align-items:center;gap:10px;font-size:13px;color:#47566b;white-space:nowrap}.opac input[type=range]{width:120px;padding:0;min-height:24px;margin:0;accent-color:#087b62}.placesearch{margin:18px 0 4px}#placeResults{margin-bottom:8px}.leaflet-control-scale-line{font-family:'DM Sans',sans-serif}
+
+/* Celular: o cartão do céu não pode ser mais largo que a tela (a coluna "em X dias" não quebra), cabeçalhos de seção empilham e alvos de toque ficam maiores */
+.sky .skygrid{grid-template-columns:repeat(3,minmax(0,1fr))}.sky .prcard{min-width:0;overflow-x:auto}
+@media(max-width:1100px){.sky .skygrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:760px){.resulthead{flex-direction:column;align-items:stretch}.resulthead>button{align-self:flex-start}.viewnav a{padding:9px 0;display:inline-block}.textbutton{padding:11px 8px;font-size:14px}.sky .prtable{font-size:12.5px}td button{min-height:36px;padding:7px 12px}.multichecks input,.toggle input{min-width:22px;min-height:22px}}
+
+/* Modo climático: o mapa é o resultado (clique no mar). Esconde o que não se aplica em vez de deixar controles que não fazem nada. */
+.climatehelp{display:none;margin:0 0 18px}.climatehelp p{margin:6px 0 0;line-height:1.6}
+body[data-mode="climate"] .climatehelp{display:block}
+body[data-mode="climate"] #search .sectionlabel,body[data-mode="climate"] #search .fields,body[data-mode="climate"] #coverageHint,body[data-mode="climate"] #locate,body[data-mode="climate"] #radiusLabel,body[data-mode="climate"] #scopeHint,body[data-mode="climate"] #analyze,body[data-mode="climate"] #home,body[data-mode="climate"] #copyLink,body[data-mode="climate"] #linkNote,body[data-mode="climate"] .stats,body[data-mode="climate"] .results .tabs,body[data-mode="climate"] .results .tablewrap,body[data-mode="climate"] .results>.hint,body[data-mode="climate"] #download{display:none}
+.leaflet-popup-content b{display:block;margin-bottom:4px}.leaflet-popup-content p{margin:0;font-size:12.5px;line-height:1.5;color:#44566a}

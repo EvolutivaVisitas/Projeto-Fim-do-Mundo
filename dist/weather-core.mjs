@@ -15,7 +15,7 @@ export const LAYERS={
  imerg:{label:'Precipitação IMERG (30 min)',gibs:'IMERG_Precipitation_Rate_30min',tms:'GoogleMapsCompatible_Level6',nativeZoom:6,stepMin:30,lagMin:300,frames:13,
   kind:'Estimativa por satélite',note:'Taxa de chuva estimada pela missão GPM/IMERG, média de 30 minutos. É estimativa por satélite (não pluviômetro) e chega com atraso de várias horas.',legend:'Taxa de precipitação estimada (mm/h)'},
  sst:{label:'Anomalia da temperatura do mar (MUR)',gibs:'GHRSST_L4_MUR_Sea_Surface_Temperature_Anomalies',tms:'GoogleMapsCompatible_Level7',nativeZoom:7,stepMin:1440,lagMin:1440,frames:7,daily:true,
-  kind:'Anomalia (produto diário)',note:'Anomalia diária da temperatura da superfície do mar (GHRSST MUR L4), relativa à climatologia de referência do produto (ver metadados NASA GIBS). Só cobre oceanos e é publicada com atraso de ~1 dia.',legend:'Azul = mais frio que o normal · vermelho = mais quente'}
+  kind:'Anomalia (produto diário)',note:'Anomalia diária da temperatura da superfície do mar (GHRSST MUR L4), relativa à climatologia de referência do produto (ver metadados NASA GIBS). Só cobre oceanos e é publicada com atraso de ~1 dia.',legend:'Roxo, azul e verde = mais frio · cinza-esverdeado ≈ normal · amarelo a vinho = mais quente (escala de −3 a +3 °C)'}
 };
 
 const pad=n=>String(n).padStart(2,'0');

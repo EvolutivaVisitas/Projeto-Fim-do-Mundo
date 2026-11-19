@@ -52,13 +52,14 @@ A seção **Céu e eventos** mostra a fase atual da Lua, as próximas fases, os 
 
 - `fetch-dedupe.mjs` unifica pedidos GET idênticos feitos quase juntos (a mesma previsão era pedida por três seções). Janela de 15 s: “Atualizar agora” continua consultando a fonte.
 - `lazy-sections.mjs` adia o boletim diário, o satélite, os avisos e o clima global até se aproximarem da tela (ou 12 s após abrir). Na abertura, as requisições caíram de ~80 para ~56 e os quadros animados de satélite deixaram de competir com o mapa.
-- `hash-align.mjs` realinha links como `#weather` enquanto as seções de cima terminam de carregar.
+- `hash-align.mjs` realinha links como `#weather` enquanto as seções de cima terminam de carregar (até 15 s; para assim que a pessoa rola ou toca).
 
 ### Mapas
 
 - **Busca de lugar** no painel do mapa principal (geocodificação Open-Meteo): escolhe o ponto, sai do modo global para a região de 100 km e analisa. Sem resultado, nada é inventado; na gravidade, lugares acima de 80° de latitude só centralizam o mapa.
 - **Opacidade** da camada ativa (magnética, gravitacional ou climática). Enquanto a pessoa não mexe no controle, cada camada mantém a sua opacidade original.
 - **Escala em km** nos dois mapas (principal e tempo/satélite).
+- **Modo climático (anomalia do mar, NASA GIBS):** a legenda usa a **escala oficial** da NASA (62 faixas de 0,1 °C, de −3 a +3 °C; roxo, azul e verde = mais frio; cinza-esverdeado ≈ normal; amarelo a vinho = mais quente). Clicar no mar mostra a faixa daquele ponto, lendo a cor do pixel do tile; terra, gelo ou área sem dado dizem “sem valor” e nada é estimado. O valor é a faixa de cor do produto diário, não uma medição no local. O modo abre com o mundo inteiro e esconde coordenadas, raio, análise e ranking, que só valem para magnetismo e gravidade. `node test-sst.mjs` valida a tabela, a leitura de pixel e a conta de tiles.
 - **Link compartilhável:** o botão “Copiar link deste ponto” gera um endereço com modo, raio e ponto (`?modo=magnetic&raio=100&lat=..&lon=..`), e o endereço da página também é atualizado a cada análise. Ao abrir um link assim, o app já carrega aquele ponto. Valores inválidos são ignorados e, na visão global, o ponto não entra no link. Vale só para o mapa principal. `node test-link.mjs` valida.
 - As grades globais de magnetismo e gravidade continuam estáticas: a atualização diária (`node collect-daily.mjs`) renova só boletim, tempo, satélite, panorama global e clima, nunca as grades.
 

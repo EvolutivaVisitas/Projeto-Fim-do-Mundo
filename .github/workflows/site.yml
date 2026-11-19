@@ -85,7 +85,7 @@ jobs:
       - name: Testes (só em push; impedem publicar código quebrado)
         if: github.event_name == 'push'
         run: |
-          for t in test-monitor test-weather test-explain test-climate test-alerts test-outlook test-projection test-sky test-link; do
+          for t in test-monitor test-weather test-explain test-climate test-alerts test-outlook test-projection test-sky test-link test-sst; do
             echo "== $t"; node $t.mjs
           done
       - uses: actions/configure-pages@v5
