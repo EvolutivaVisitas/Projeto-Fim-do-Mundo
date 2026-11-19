@@ -1,7 +1,8 @@
 import {loadGlobal,makeGlobalMagneticLayer} from './global.mjs';
 import {analyze,ranking,SERVICE} from './analysis.mjs';
 import {loadGravity,analyzeGravity,makeGravityLayer} from './gravity.mjs';
-import {LAYERS,gibsTemplate,findLatestFrame} from './weather-core.mjs';
+import {LAYERS,gibsTemplate,findLatestFrame,searchPlace} from './weather-core.mjs';
+import {parseLink,buildLink} from './link-core.mjs';
 const $=id=>document.getElementById(id),fmt=(v,n=1)=>new Intl.NumberFormat('pt-BR',{maximumFractionDigits:n,minimumFractionDigits:n}).format(v);
 let data,type='positive',busy=false,mode='magnetic',gravityLayer,globalMagLayer,climateLayer,climatePending=false;
 const configs={
@@ -13,12 +14,28 @@ const cfg=()=>configs[mode];
 const map=L.map('map',{worldCopyJump:true,minZoom:0,maxZoom:15}).setView([-16.758611,-49.344444],7);
 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19,referrerPolicy:'strict-origin-when-cross-origin'}).addTo(map);
 const Magnetic=L.TileLayer.extend({getTileUrl(coords){const size=this.getTileSize(),nw=map.unproject(coords.scaleBy(size),coords.z),se=map.unproject(coords.add(L.point(1,1)).scaleBy(size),coords.z);return SERVICE+'/exportImage?'+new URLSearchParams({bbox:[nw.lng,se.lat,se.lng,nw.lat].join(','),bboxSR:'4326',imageSR:'3857',size:'256,256',format:'png32',transparent:'true',renderingRule:JSON.stringify({rasterFunction:'EMAG2_Color_Scale'}),f:'image'});}});
+L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
 const magnetic=new Magnetic('',{opacity:.65,attribution:'NOAA/NCEI EMAG2 v3',maxZoom:15});let layerWarned=false;
 magnetic.on('tileerror',()=>{if(mode==='magnetic'&&!layerWarned){layerWarned=true;status('A camada global está temporariamente indisponível. A análise numérica continua independente.',true);}});
 const markers=L.layerGroup().addTo(map);let circle,center;
 function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);}
 function selected(lat,lon){$('lat').value=lat.toFixed(6);$('lon').value=lon.toFixed(6);if(center)center.remove();center=L.circleMarker([lat,lon],{radius:7,color:'#fff',weight:3,fillColor:'#101b2b',fillOpacity:1}).addTo(map);}
-function syncLayer(){magnetic.remove();gravityLayer?.remove();globalMagLayer?.remove();climateLayer?.remove();if(mode==='climate'){ensureClimate();if($('overlay').checked)climateLayer?.addTo(map);return;}if($('overlay').checked)(mode==='magnetic'?($('radius').value==='global'?globalMagLayer:magnetic):gravityLayer)?.addTo(map);}
+// Opacidade escolhida pela pessoa: só vale depois que ela mexe no controle (antes, cada camada usa a sua).
+let userOpacity=null;const applyOpacity=()=>{if(userOpacity!==null)for(const l of [magnetic,gravityLayer,globalMagLayer,climateLayer])l?.setOpacity(userOpacity);};
+function syncLayer(){magnetic.remove();gravityLayer?.remove();globalMagLayer?.remove();climateLayer?.remove();if(mode==='climate'){ensureClimate();if($('overlay').checked)climateLayer?.addTo(map);applyOpacity();return;}if($('overlay').checked)(mode==='magnetic'?($('radius').value==='global'?globalMagLayer:magnetic):gravityLayer)?.addTo(map);applyOpacity();}
+$('mapOpacity').oninput=()=>{userOpacity=Number($('mapOpacity').value);applyOpacity();};
+// Busca de lugar (geocodificação Open-Meteo): escolhe o ponto e analisa a região. Sem lugar encontrado, nada é inventado.
+const placeLabel=p=>[p.name,p.region,p.country].filter(Boolean).join(', ');
+function pickPlace(p){if(busy){status('Aguarde a análise atual terminar para escolher outro lugar.',true);return;}const lat=Math.max(-85,Math.min(85,p.lat));map.setView([lat,p.lon],mode==='climate'?4:8);$('placeResults').replaceChildren();
+ if(mode==='climate'){status('Mapa centralizado em '+placeLabel(p)+'. No modo climático não há análise por ponto.');return;}
+ if(mode==='gravity'&&Math.abs(lat)>79.99){status('A grade gravitacional cobre só entre 80°S e 80°N. O mapa foi centralizado, sem análise.',true);return;}
+ if($('radius').value==='global'){$('radius').value='100';clearResults();syncMode();}
+ selected(lat,p.lon);status(placeLabel(p)+' selecionado. Analisando a região de '+$('radius').value+' km…');run();}
+async function findPlace(){const q=$('placeQuery').value.trim(),ul=$('placeResults');ul.replaceChildren();const li=t=>{const e=document.createElement('li');e.textContent=t;e.className='error';ul.append(e);};
+ if(q.length<2){li('Digite pelo menos 2 letras.');return;}$('placeGo').disabled=true;
+ try{const list=await searchPlace(q);if(!list.length)li('Nenhum lugar encontrado para “'+q+'”.');for(const p of list){const e=document.createElement('li'),b=document.createElement('button');b.type='button';b.textContent=placeLabel(p)+' · '+fmt(p.lat,2)+', '+fmt(p.lon,2);b.onclick=()=>pickPlace(p);e.append(b);ul.append(e);}}
+ catch(e){li('Busca indisponível agora: '+e.message);}finally{$('placeGo').disabled=false;}}
+$('placeForm').onsubmit=e=>{e.preventDefault();findPlace();};
 // Camada climática: procura o dia mais recente realmente publicado na NASA GIBS; sem quadro, nada é exibido.
 async function ensureClimate(){if(climateLayer||climatePending)return;climatePending=true;const layer=LAYERS.sst,probe=url=>new Promise(ok=>{const i=new Image(),t=setTimeout(()=>ok(false),8000);i.onload=()=>{clearTimeout(t);ok(true);};i.onerror=()=>{clearTimeout(t);ok(false);};i.src=url;});status('Procurando o dia mais recente da anomalia do mar…');
  try{const ms=await findLatestFrame(layer,probe,Date.now(),10);if(ms===null){status('A NASA GIBS não retornou a camada de anomalia do mar. Nada é exibido no lugar.',true);return;}climateLayer=L.tileLayer(gibsTemplate(layer,ms),{opacity:.8,maxNativeZoom:layer.nativeZoom,maxZoom:15,attribution:'NASA GIBS · GHRSST MUR'});if(mode==='climate'&&$('overlay').checked)climateLayer.addTo(map);status('Anomalia da temperatura do mar de '+new Date(ms).toISOString().slice(0,10)+' (UTC): produto diário, com ~1–2 dias de atraso.');}finally{climatePending=false;}}
@@ -35,12 +52,22 @@ async function run(useCache=false){if(busy)return;if(mode==='climate'){status('M
  if(radius==='global'){status('Carregando a grade e os rankings de toda a Terra…');const result=await loadGlobal(mode);if(mode==='magnetic'&&!globalMagLayer)globalMagLayer=makeGlobalMagneticLayer(L,result.values);if(mode==='gravity'&&!gravityLayer)gravityLayer=makeGravityLayer(L,result.values);next=result.data;syncLayer();}
  else if(mode==='gravity'){status('Carregando grade gravitacional (13 MB na primeira abertura)…');const values=await loadGravity(p=>{$('progress').value=p;status(`Carregando gravidade: ${Math.round(p*100)}%…`);});if(!gravityLayer)gravityLayer=makeGravityLayer(L,values);syncLayer();next=analyzeGravity(values,lat,lon,radius);}
  else {status('Consultando a grade magnética oficial…');if(useCache&&Math.abs(lat+16.758611)<1e-6&&Math.abs(lon+49.344444)<1e-6&&radius===100){try{const r=await fetch('goiania.json');if(r.ok)cached=await r.json();}catch{}}next=cached??await analyze(lat,lon,radius,p=>{$('progress').value=p;status(`Consultando a NOAA: ${Math.round(p*100)}% concluído…`);});next.mode='magnetic';}
- data=next;render();status(data.scope==='global'?`Análise global: ${fmt(data.validCount,0)} células válidas. Os rankings mostram os 10 extremos de cada categoria.`:`Análise concluída. ${data.points.length} células válidas no raio de ${data.radius} km.${cached?' Consulta de Goiânia salva para abertura rápida.':''}`);
+ data=next;render();syncUrl();status(data.scope==='global'?`Análise global: ${fmt(data.validCount,0)} células válidas. Os rankings mostram os 10 extremos de cada categoria.`:`Análise concluída. ${data.points.length} células válidas no raio de ${data.radius} km.${cached?' Consulta de Goiânia salva para abertura rápida.':''}`);
  }catch(e){status('Não foi possível concluir: '+e.message+(data?' Os resultados anteriores foram mantidos.':' Tente outra região ou novamente em alguns instantes.'),true);}finally{setBusy(false);}}
 $('radius').onchange=()=>{clearResults();syncMode();run(true);};
 $('mode').onchange=()=>{mode=$('mode').value;clearResults();syncMode();run(true);};
 $('search').onsubmit=e=>{e.preventDefault();run();};$('home').onclick=()=>{selected(-16.758611,-49.344444);$('radius').value='100';syncMode();run(true);};$('locate').onclick=()=>{if(!navigator.geolocation){status('Este navegador não oferece localização.',true);return;}status('Obtendo sua localização…');navigator.geolocation.getCurrentPosition(p=>{selected(p.coords.latitude,p.coords.longitude);map.setView([p.coords.latitude,p.coords.longitude],8);status('Localização selecionada. Clique em “Analisar região”.');},()=>status('Não foi possível obter a localização. Você pode clicar no mapa ou informar coordenadas.',true),{timeout:15000});};
 document.querySelectorAll('[data-type]').forEach(b=>b.onclick=()=>{type=b.dataset.type;document.querySelectorAll('[data-type]').forEach(el=>{el.classList.toggle('active',el===b);el.setAttribute('aria-pressed',String(el===b));});if(data)renderRanking();});
 $('download').onclick=()=>{if(!data)return;const c=configs[data.mode],rows=[['tipo','abrangencia','fonte','analise_utc','resolucao_arcmin','centro_lat','centro_lon','raio_km','latitude','longitude','distancia_km','anomalia_'+c.unit,'gradiente_'+c.unit+'_km'],...data.points.map(p=>[data.mode,data.scope??'regional',data.source??c.source,data.date,data.resolution_arcmin??c.resolution,data.lat,data.lon,data.radius,p.lat,p.lon,p.km,p.value,p.gradient??''])];const blob=new Blob(['\uFEFF'+rows.map(r=>r.join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=`magneterra-${data.mode==='gravity'?'gravidade':'magnetismo'}-${data.scope??'regional'}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+// Link compartilhável (?modo=&raio=&lat=&lon=): lido ao abrir e atualizado depois de cada análise. Só o ponto do mapa principal.
+const linkState=()=>({mode,radius:$('radius').value,lat:Number($('lat').value),lon:Number($('lon').value)});
+function syncUrl(){try{history.replaceState(null,'',buildLink(location.href,linkState(),location.hash));}catch{}}
+function readLink(){const l=parseLink(location.search);if(l.mode){mode=l.mode;$('mode').value=l.mode;}if(l.radius)$('radius').value=l.radius;else if(l.lat!==undefined)$('radius').value='100';
+ if(l.lat!==undefined){selected(l.lat,l.lon);map.setView([l.lat,l.lon],$('radius').value==='global'?3:8);}}
+$('copyLink').onclick=async()=>{const url=buildLink(location.href,linkState()),note=$('linkNote');let ok=false;
+ try{await navigator.clipboard.writeText(url);ok=true;}catch{}
+ if(!ok){const t=document.createElement('textarea');t.value=url;t.setAttribute('readonly','');t.style.cssText='position:fixed;opacity:0';document.body.append(t);t.select();try{ok=document.execCommand('copy');}catch{}t.remove();}
+ note.textContent=ok?($('radius').value==='global'?'Link copiado (visão global, sem ponto).':'Link copiado: abre o mapa neste ponto, modo e raio.'):'Não foi possível copiar sozinho. Copie o endereço da barra do navegador.';note.classList.toggle('error',!ok);};
+readLink();
 syncMode();run(true);
 window.magneTerraState=()=>({mode,data});

@@ -208,3 +208,34 @@ export function explainProjection(p,place=''){
  if(p.errors?.length)sections.push({title:'Limite do dado',text:p.errors.join(' ')});
  const exp=make(0,`Estimativas para o futuro${where}, calculadas a partir do passado e do presente.`,sections);exp.levelLabel='Estimativa estatística (sem alerta)';return exp;
 }
+
+// ---- Céu: fases da Lua, eclipses e estações (astronomia; não é geofísica nem alerta) ----
+const skyWhen=ms=>new Date(ms).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo',weekday:'short',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+' (Brasília)';
+const skyIn=(ms,now)=>{const d=(ms-now)/86400000;return d<-0.1?'já ocorreu':d<1?'em menos de 1 dia':d<60?`em ${f0(d)} dias`:`em cerca de ${f1(d/30.44)} meses`;};
+const ECL_KIND={solar:{central:'central (total ou anular)',parcial:'parcial',incerto:'parcial ou central (o cálculo simples não separa os dois)'},lunar:{total:'total',parcial:'parcial',penumbral:'penumbral (muito sutil, quase imperceptível a olho nu)',incerto:'parcial ou penumbral (o cálculo simples não separa os dois)'}};
+export function explainSky(sky,place=''){
+ if(!sky||!sky.moon||!sky.phases?.length)return make(null,'Não foi possível calcular os eventos do céu agora.',[{title:'O que aconteceu',text:'O cálculo não retornou resultados. Nada foi estimado.'}]);
+ const now=Date.parse(sky.collectedAt),m=sky.moon,sections=[];
+ sections.push({title:'A Lua hoje',text:`Fase: ${m.stage.toLowerCase()}, com cerca de ${f0(m.illum*100)}% do disco iluminado, ${f1(m.age)} dias depois da última lua nova (${m.waxing?'crescendo':'minguando'}).`});
+ const np=sky.phases.find(p=>p.target===0),fp=sky.phases.find(p=>p.target===180);
+ sections.push({title:'Próximas fases',text:`${np?`A próxima lua nova é ${skyWhen(np.ms)} (${skyIn(np.ms,now)}). `:''}${fp?`A próxima lua cheia é ${skyWhen(fp.ms)} (${skyIn(fp.ms,now)}). `:''}As fases se repetem a cada 29,5 dias, em média. Perto da lua nova e da cheia as marés do mar ficam um pouco maiores (marés de sizígia), o que importa para quem vive ou trabalha na costa.`});
+ const ecl=(sky.eclipses||[]).filter(e=>e.ms>now-3*3600e3),e0=ecl[0];
+ if(e0){
+  const what=e0.kind==='solar'?'eclipse solar':'eclipse lunar',kindTxt=ECL_KIND[e0.kind][e0.q];
+  let vis;
+  if(sky.point){
+   if(e0.kind==='lunar')vis=e0.horizon==='acima'?'No ponto escolhido a Lua estará acima do horizonte nesse momento, então dá para ver o eclipse se o céu estiver limpo.':e0.horizon==='abaixo'?'No ponto escolhido a Lua estará abaixo do horizonte nesse momento: o eclipse não será visível daí.':'No ponto escolhido a Lua estará perto do horizonte nesse momento: a visibilidade é incerta.';
+   else vis=e0.horizon==='abaixo'?'No ponto escolhido o Sol estará abaixo do horizonte nesse momento: o eclipse não será visível daí.':'Um eclipse solar só é visto de uma região específica da Terra (a faixa da sombra é estreita) e o app não calcula essa faixa. Consulte um mapa oficial de eclipses para saber se passa perto de você.';
+  }else vis=e0.kind==='lunar'?'Um eclipse lunar é visto de todo lugar onde a Lua estiver acima do horizonte nesse momento.':'Um eclipse solar só é visto de uma região específica da Terra.';
+  const more=ecl.slice(1,3).map(e=>`${e.kind==='solar'?'solar':'lunar'} ${skyWhen(e.ms)}`).join('; ');
+  sections.push({title:'Próximo eclipse',text:`O próximo é um ${what} ${kindTxt}, ${skyWhen(e0.ms)} (${skyIn(e0.ms,now)}). ${vis}${more?` Depois dele: ${more}.`:''}`});
+  sections.push({title:'Por que dá para prever eclipses',text:`Eclipses se repetem num ciclo chamado Saros, de cerca de 18 anos, 11 dias e 8 horas. Foi esse ciclo que o Mecanismo de Anticítera, um aparelho grego de mais de 2.000 anos, usava para prever eclipses. Por isso o ${what} acima deve ter um “parente” por volta de ${skyWhen(e0.sarosNextMs)}; as 8 horas extras deslocam a faixa de visibilidade cerca de 120° para o oeste.`});
+ }
+ const s0=(sky.seasons||[])[0];
+ if(s0)sections.push({title:'Próxima estação do ano',text:`${s0.name}: ${skyWhen(s0.ms)} (${skyIn(s0.ms,now)}). ${sky.point?`Para o hemisfério ${sky.point.lat<0?'sul':'norte'}, marca o ${s0.season}.`:'Os nomes das estações valem para o hemisfério norte; no sul são trocados.'}`});
+ sections.push({title:'Isso afeta o campo magnético ou os terremotos?',text:'Não há base científica para dizer que fases da Lua ou eclipses causem terremotos, erupções ou tempestades geomagnéticas. A Lua provoca marés e uma variação magnética diária muito pequena; estudos de “marés e terremotos” acharam, no máximo, efeitos estatísticos mínimos que não permitem prever nada. As tempestades geomagnéticas vêm do Sol (vento solar) e estão no Monitoramento diário. O MagneTerra não usa a Lua para prever isso.'});
+ sections.push({title:'Quão confiável é?',text:'É um cálculo astronômico com fórmulas conhecidas, feito no seu navegador, sem depender de internet. As datas de fases e estações costumam estar certas em poucos minutos. Nos eclipses, a data e a hora são boas, mas o tipo (total, parcial, anular) é aproximado. Antes de planejar uma viagem para ver um eclipse, confira em tabelas oficiais (NASA ou observatórios).'});
+ const end='Eclipses e fases da Lua são fenômenos regulares, previstos com décadas de antecedência. Nada disso indica perigo. Só um cuidado de segurança: nunca olhe direto para o Sol, nem durante um eclipse, sem filtro solar certificado.';
+ const exp=make(0,e0&&(e0.ms-now)<90*86400000?`Próximo eclipse: ${e0.kind==='solar'?'solar':'lunar'} ${skyIn(e0.ms,now)}.`:`Hoje a Lua está em ${m.stage.toLowerCase()}${place?`, vista de ${place}`:''}. Nenhum eclipse nos próximos 3 meses.`,sections,end);
+ exp.levelLabel='Evento previsível (não é alerta)';return exp;
+}

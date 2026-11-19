@@ -39,6 +39,29 @@ A seção **Estimativa futura** calcula, no próprio app e com métodos estatís
 - **Temperatura global:** extrapolação linear da tendência desde 1970 (NASA GISTEMP) para 2030/2040/2050 com intervalo de ~90%; não é projeção climática.
 Cada estimativa traz o intervalo e o limite do método; falta de dado nunca é preenchida. `node test-projection.mjs` valida (inclui recuperar a persistência de um processo AR(1) sintético).
 
+### Céu e eventos (astronomia previsível)
+
+A seção **Céu e eventos** mostra a fase atual da Lua, as próximas fases, os próximos **eclipses** (solares e lunares) e os próximos equinócios e solstícios. É cálculo de efemérides (termos principais de Meeus) feito no navegador, sem fonte externa e sem internet:
+- Fases e estações costumam estar certas em poucos minutos (os testes comparam com datas conhecidas, por exemplo a Lua nova de 8/4/2024 e os equinócios de 2026).
+- Eclipses: data e hora boas; o tipo é aproximado e os casos no limite aparecem como “tipo incerto”. Para eclipses lunares, informa se a Lua estará acima do horizonte no ponto escolhido; para solares, só se o Sol estará abaixo do horizonte (a faixa de visibilidade não é calculada).
+- O botão “Explicar em linguagem simples” inclui o ciclo de Saros (18 anos, 11 dias e 8 horas), o mesmo que o Mecanismo de Anticítera usava.
+- **Não** relaciona Lua ou eclipses a terremotos ou tempestades geomagnéticas. Não é alerta.
+`node test-sky.mjs` valida fases, estações, 12 eclipses reais de 2024–2026, Saros e altura da Lua.
+
+### Desempenho e navegação
+
+- `fetch-dedupe.mjs` unifica pedidos GET idênticos feitos quase juntos (a mesma previsão era pedida por três seções). Janela de 15 s: “Atualizar agora” continua consultando a fonte.
+- `lazy-sections.mjs` adia o boletim diário, o satélite, os avisos e o clima global até se aproximarem da tela (ou 12 s após abrir). Na abertura, as requisições caíram de ~80 para ~56 e os quadros animados de satélite deixaram de competir com o mapa.
+- `hash-align.mjs` realinha links como `#weather` enquanto as seções de cima terminam de carregar.
+
+### Mapas
+
+- **Busca de lugar** no painel do mapa principal (geocodificação Open-Meteo): escolhe o ponto, sai do modo global para a região de 100 km e analisa. Sem resultado, nada é inventado; na gravidade, lugares acima de 80° de latitude só centralizam o mapa.
+- **Opacidade** da camada ativa (magnética, gravitacional ou climática). Enquanto a pessoa não mexe no controle, cada camada mantém a sua opacidade original.
+- **Escala em km** nos dois mapas (principal e tempo/satélite).
+- **Link compartilhável:** o botão “Copiar link deste ponto” gera um endereço com modo, raio e ponto (`?modo=magnetic&raio=100&lat=..&lon=..`), e o endereço da página também é atualizado a cada análise. Ao abrir um link assim, o app já carrega aquele ponto. Valores inválidos são ignorados e, na visão global, o ponto não entra no link. Vale só para o mapa principal. `node test-link.mjs` valida.
+- As grades globais de magnetismo e gravidade continuam estáticas: a atualização diária (`node collect-daily.mjs`) renova só boletim, tempo, satélite, panorama global e clima, nunca as grades.
+
 ### Leitura geral: “Isso é alarmante?”
 
 No topo da página, o painel **Isso é alarmante?** calcula, para o ponto escolhido em “Tempo e satélite” (padrão: Goiânia), uma leitura em linguagem simples juntando: (1) a previsão dos próximos 7 dias de temperatura e chuva comparada ao normal ERA5 1991–2020, com a **raridade** do desvio (em cerca de 1 a cada N dias, por aproximação normal) e a tendência da semana; (2) a previsão de Kp da NOAA; (3) os avisos oficiais em vigor (USGS, NOAA, GDACS). Dá um nível (normal, atenção leve, atenção, alerta) e um veredito. Regras: previsões nunca passam de “vale acompanhar”; só avisos graves de agências levam ao nível mais alto; o contexto de longo prazo (clima global) aparece mas não entra na leitura geral; dado ausente é dito e nunca estimado. Se a API de 30 anos estiver no limite, usa a climatologia pré-calculada do lugar da lista mais próximo (até 60 km) e informa isso. `node test-outlook.mjs` valida. Não prevê terremotos nem erupções.

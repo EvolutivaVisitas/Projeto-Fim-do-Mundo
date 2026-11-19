@@ -49,7 +49,7 @@ async function anomaly(){const id=++anomalyId;$('wxAnomalyNote').textContent='Co
 function select(lat,lon,label){pointLabel=label??'';resetMonthly();resetForecast();point={lat:Math.max(-89,Math.min(89,lat)),lon:((lon+180)%360+360)%360-180};marker?.remove();marker=L.circleMarker([point.lat,point.lon],{radius:7,color:'#fff',weight:3,fillColor:'#101b2b',fillOpacity:1}).addTo(map);$('wxPoint').textContent=(label?label+' · ':'')+`${fmt(point.lat,3)}, ${fmt(point.lon,3)}`;anomaly();}
 function start(){if(started||typeof L==='undefined')return;started=true;
  map=L.map('wxMap',{worldCopyJump:true,minZoom:2,maxZoom:10}).setView([-16.76,-49.34],4);
- L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);
+ L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',maxZoom:19}).addTo(map);L.control.scale({imperial:false,position:'bottomleft'}).addTo(map);
  sat=L.tileLayer('',{opacity:.85,maxNativeZoom:7,maxZoom:10,attribution:'NASA GIBS · GOES (NOAA/NASA) · IMERG · GHRSST MUR'}).addTo(map);
  map.on('click',e=>select(e.latlng.lat,e.latlng.lng));
  for(const [key,l] of Object.entries(LAYERS)){const o=document.createElement('option');o.value=key;o.textContent=l.label;$('wxLayer').append(o);}
